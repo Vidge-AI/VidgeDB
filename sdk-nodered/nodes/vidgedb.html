@@ -1,0 +1,294 @@
+<!--
+  VidgeDB Node-RED nodes — editor side (Phase 13).
+
+  One config node (vidgedb-service) + four function nodes:
+  vidgedb-query / vidgedb-ingest / vidgedb-check / vidgedb-log-event.
+  Each function node paints its status strip from the managed subprocess:
+  GREEN dot = running, RED ring = down (dead / respawning / not found).
+-->
+<script type="text/javascript">
+    RED.nodes.registerType("vidgedb-service", {
+        category: "config",
+        defaults: {
+            name: { value: "" },
+            binaryPath: { value: "/usr/local/bin/vidgedb", required: true },
+            dbPath: { value: "", required: true, validate: function (v) {
+                return /\S+/.test(v || "");
+            } },
+            role: { value: "reader" },
+            agentId: { value: "node-red" },
+            retentionDays: { value: 0 },
+            timeoutMs: { value: 30000 },
+            autoRespawn: { value: true }
+        },
+        credentials: {},
+        label: function () {
+            var role = (this.role || "reader");
+            return this.name || "vidgedb:" + role;
+        },
+        oneditprepare: function () {
+            $("#node-config-input-role").val(this.role || "reader");
+        }
+    });
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("vidgedb-query", {
+        category: "vidgedb",
+        color: "#2f6f4f",
+        defaults: {
+            name: { value: "" },
+            service: { value: "", type: "vidgedb-service", required: true },
+            output: { value: "rows" }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "database.svg",
+        align: "left",
+        paletteLabel: "vidgedb query",
+        label: function () { return this.name || "vidgedb-query"; }
+    });
+
+    RED.nodes.registerType("vidgedb-ingest", {
+        category: "vidgedb",
+        color: "#7a4a2f",
+        defaults: {
+            name: { value: "" },
+            service: { value: "", type: "vidgedb-service", required: true },
+            entity: { value: "" },
+            signal: { value: "" },
+            passthrough: { value: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "feed.svg",
+        align: "left",
+        paletteLabel: "vidgedb-ingest",
+        label: function () {
+            return this.name ||
+                "vidgedb-ingest" +
+                (this.entity ? ": " + this.entity : "");
+        }
+    });
+
+    RED.nodes.registerType("vidgedb-check", {
+        category: "vidgedb",
+        color: "#8f3b3b",
+        defaults: {
+            name: { value: "" },
+            service: { value: "", type: "vidgedb-service", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "alert.svg",
+        align: "left",
+        paletteLabel: "vidgedb-check",
+        label: function () { return this.name || "vidgedb-check"; }
+    });
+
+    RED.nodes.registerType("vidgedb-log-event", {
+        category: "vidgedb",
+        color: "#4a4a8f",
+        defaults: {
+            name: { value: "" },
+            service: { value: "", type: "vidgedb-service", required: true }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "envelope.svg",
+        align: "left",
+        paletteLabel: "vidgedb-log-event",
+        label: function () { return this.name || "vidgedb-log-event"; }
+    });
+</script>
+
+<!-- ---------------- vidgedb-service (config) ---------------- -->
+<script type="text/html" data-template-name="vidgedb-service">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Factory DB">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-binaryPath"><i class="fa fa-file-o"></i> Binary</label>
+        <input type="text" id="node-config-input-binaryPath" placeholder="/usr/local/bin/vidgedb">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-dbPath"><i class="fa fa-database"></i> Database</label>
+        <input type="text" id="node-config-input-dbPath" placeholder="/data/plant-twin.vdg">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-role"><i class="fa fa-user-shield"></i> Role</label>
+        <select id="node-config-input-role">
+            <option value="reader">reader</option>
+            <option value="writer">writer</option>
+            <option value="ingest">ingest</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-agentId"><i class="fa fa-id-badge"></i> Agent ID</label>
+        <input type="text" id="node-config-input-agentId" placeholder="node-red-bridge">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-retentionDays"><i class="fa fa-clock-o"></i> Retention (days)</label>
+        <input type="number" id="node-config-input-retentionDays" placeholder="0 = default">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-timeoutMs"><i class="fa fa-hourglass-half"></i> Timeout (ms)</label>
+        <input type="number" id="node-config-input-timeoutMs" placeholder="30000">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-autoRespawn"><i class="fa fa-refresh"></i>&nbsp;Auto-respawn</label>
+        <input type="checkbox" id="node-config-input-autoRespawn" style="width:auto">
+        <span style="margin-left:8px;color:#999">respawn the binary if it dies</span>
+    </div>
+</script>
+<script type="text/html" data-help-name="vidgedb-service">
+    <p>A managed <code>vidgedb --service &lt;db.vdg&gt;</code> subprocess —
+    line-delimited JSON-RPC 2.0 over its stdin/stdout.</p>
+    <p>Fields:</p>
+    <ul>
+      <li><b>Binary</b> — path to the vidgedb Rust binary (falls back to the
+        <code>VIDGEDB_BIN</code> environment variable, then <code>vidgedb</code> on PATH)</li>
+      <li><b>Database</b> — the <code>.vdg</code> file to open</li>
+      <li><b>Role</b> — <code>reader</code> (default, reads only),
+        <code>writer</code> (full write path), or <code>ingest</code>
+        (telemetry ingest). A reader refuses every write with <code>-32003</code>.</li>
+      <li><b>Agent ID</b> — identifier recorded in the VidgeDB audit trail</li>
+      <li><b>Retention days</b> — optional; enables retention policy from the service itself</li>
+      <li><b>Timeout (ms)</b> — per-request timeout</li>
+      <li><b>Auto-respawn</b> — restart the subprocess if it exits unexpectedly</li>
+    </ul>
+    <p>The process is spawned at deploy, closed cleanly (stdin EOF) at
+    re-deploy/close, and respawned (with a small backoff) if it dies while
+    auto-respawn is checked.</p>
+</script>
+
+<!-- ---------------- vidgedb-query ---------------- -->
+<script type="text/html" data-template-name="vidgedb-query">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Query VidgeDB">
+    </div>
+    <div class="form-row">
+        <label for="node-input-service"><i class="fa fa-database"></i> Service</label>
+        <input type="text" id="node-input-service">
+    </div>
+    <div class="form-tips" style="margin-top:8px">
+        <b>msg.payload</b> is either a VQL string
+        (<code>MATCH (m:Motor) RETURN name, props</code>) or an object
+        <code>{ vql, temporal?: true, now?: &lt;unixSecs&gt; }</code> —
+        temporal queries are issued via <code>query_temporal</code>.
+        Output: <code>msg.payload = rows</code> (array),
+        <code>msg.n</code> = row count.
+    </div>
+</script>
+<script type="text/html" data-help-name="vidgedb-query">
+    <p>Run a <b>VQL</b> query against the VidgeDB service.</p>
+    <p><b>In</b>: <code>msg.payload</code> = VQL string, or
+       <code>{vql, temporal?: true, now?}</code>.</p>
+    <p><b>Out</b>: <code>msg.payload</code> = array of row objects,
+       <code>msg.n</code> = row count. A query parse/execution problem
+       surfaces in <code>msg.queryError</code>; a JSON-RPC error in
+       <code>msg.error</code>.</p>
+    <p>Status strip mirrors the subprocess: green dot = running,
+       red ring = down.</p>
+</script>
+
+<!-- ---------------- vidgedb-ingest ---------------- -->
+<script type="text/html" data-template-name="vidgedb-ingest">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Ingest telemetry">
+    </div>
+    <div class="form-row">
+        <label for="node-input-service"><i class="fa fa-database"></i> Service</label>
+        <input type="text" id="node-input-service">
+    </div>
+    <div class="form-row">
+        <label for="node-input-entity"><i class="fa fa-cog"></i> Entity</label>
+        <input type="text" id="node-input-entity" placeholder="Motor77 (overridden by msg.payload.entity)">
+    </div>
+    <div class="form-row">
+        <label for="node-input-signal"><i class="fa fa-wave-square"></i> Signal</label>
+        <input type="text" id="node-input-signal" placeholder="current (overridden by msg.payload.signal)">
+    </div>
+    <div class="form-tips" style="margin-top:8px">
+      <b>msg.payload</b> = <code>{entity, signal, points:[[ts,value],…]}</code>
+      (ts = integer unix seconds, value = number; a single
+      <code>[ts,value]</code> pair also works). Needs a
+      <b>writer</b>/<b>ingest</b> role in the service config — a reader
+      surfaces <code>write forbidden</code>.
+    </div>
+</script>
+<script type="text/html" data-help-name="vidgedb-ingest">
+    <p>Ingest a batch of telemetry points into a time series
+    <code>&lt;entity&gt;.&lt;signal&gt;</code> (auto-created on first write,
+    Observation provenance). Role <b>writer</b> or <b>ingest</b> required.</p>
+    <p><b>msg.payload</b> = <code>{entity, signal, points}</code> where points
+    is a non-empty array of <code>[integerTs, number]</code> pairs (the object
+    form <code>{ts, value}</code> is accepted and normalized). A bare
+    two-element numeric pair (<code>[1700000000, 4.5]</code>) is treated as a
+    one-point batch — the MQTT "one message == one reading" case.</p>
+    <p><b>Out</b>: <code>msg.payload = {ok: true, accepted, chunks_flushed, …}</code>,
+    <code>msg.ingested</code> = accepted count. Write-forbidden refusals
+    (role=reader) surface as a red status + <code>msg.error</code> with
+    code −32003.</p>
+</script>
+
+<!-- ---------------- vidgedb-check ---------------- -->
+<script type="text/html" data-template-name="vidgedb-check">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Deviation check">
+    </div>
+    <div class="form-row">
+        <label for="node-input-service"><i class="fa fa-database"></i> Service</label>
+        <input type="text" id="node-input-service">
+    </div>
+    <div class="form-tips" style="margin-top:8px">
+      <b>msg.payload</b> = <code>{entity, signal, from?, to?}</code>.
+      Output: full result in <code>msg.payload</code> (status
+      OK / VIOLATION / NO_DATA / NO_SPEC). When the status is VIOLATION the
+      node sets <code>msg.violations = [result]</code>; otherwise
+      <code>msg.violations = []</code> — wire it to a
+      <code>switch</code> node on <code>msg.violations[0]</code> for alerting.
+    </div>
+</script>
+<script type="text/html" data-help-name="vidgedb-check">
+    <p>Spec-deviation CHECK against the entity's
+    <code>spec.&lt;signal&gt;.max</code> property over a window: the
+    worst-case observed value is compared to the Specification (provenance
+    preserved as <code>expected_provenance</code> /
+    <code>observed_provenance</code>).</p>
+    <p><b>msg.payload</b> = <code>{entity, signal, from?, to?}</code>
+    (unix-seconds bounds; defaults cover the whole series).</p>
+    <p><b>Out</b>: <code>msg.payload</code> = the check result
+    (<code>status</code>: OK | VIOLATION | NO_DATA | NO_SPEC),
+    <code>msg.violations</code> = <code>[result]</code> only on VIOLATION
+    (else the empty array).</p>
+</script>
+
+<!-- ---------------- vidgedb-log-event ---------------- -->
+<script type="text/html" data-template-name="vidgedb-log-event">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Event logger">
+    </div>
+    <div class="form-row">
+        <label for="node-input-service"><i class="fa fa-database"></i> Service</label>
+        <input type="text" id="node-input-service">
+    </div>
+    <div class="form-tips" style="margin-top:8px">
+      <b>msg.payload</b> = <code>{name, entity, timestamp?, provenance?, details?}</code>.
+      <code>timestamp</code> defaults to unix now; <code>provenance</code> is
+      the numeric class (1=Observation by default). Needs <b>writer</b> role.
+    </div>
+</script>
+<script type="text/html" data-help-name="vidgedb-log-event">
+    <p>Append one event to the audit/event log (spec §15, append-only,
+    Writer role only).</p>
+    <p><b>msg.payload</b> = <code>{name, entity, timestamp?, provenance?, details?}</code>
+    — <code>timestamp</code> defaults to the node's unix now, and
+    <code>provenance</code> defaults to 1 (Observation).</p>
+    <p><b>Out</b>: <code>msg.payload = {ok, logged, event, entity}</code>.</p>
+</script>

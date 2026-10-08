@@ -1,0 +1,54 @@
+# VidgeDB CI — triple-OS matrix (Phase 90).
+#
+# NOTE (deployment): the repo is currently PRIVATE / un-released, so this
+# workflow does not run yet (GitHub gives no free Actions minutes on
+# private repos at this scale). ACTIVATE at the first PUBLIC push: it
+# picks up automatically once the repo visibility flips to public — no
+# workflow changes needed.
+#
+# Slow-test policy: every integration test over 30 s is #[ignore]-tagged
+# (phase89_finegrid, the ~497 s 24-kill probe grid — marked "CI nightly
+# re-enables"); the standard `cargo test` here SKIPS the tagged set, and
+# the nightly job re-runs it with `--include-ignored`.
+
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: cargo test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo build --all-targets
+        run: cargo build --workspace --all-targets
+
+      - name: cargo test --workspace
+        run: cargo test --workspace
+
+  nightly-slow:
+    # CI nightly re-enables the #[ignore]-tagged slow tests (the ~497 s
+    # phase89 fine-grid and future >30 s probes). Runs on main pushes only.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo build --all-targets
+        run: cargo build --workspace --all-targets
+
+      - name: cargo test --workspace --include-ignored (nightly slow set)
+        run: cargo test --workspace -- --include-ignored

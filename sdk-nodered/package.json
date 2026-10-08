@@ -1,0 +1,46 @@
+{
+  "name": "node-red-contrib-vidgedb",
+  "version": "0.1.0",
+  "description": "Node-RED nodes for VidgeDB: visual connector to a VidgeDB digital-twin database over the JSON-RPC 2.0 stdin/stdout service (spawn managed as a subprocess). Query, ingest telemetry, deviation checks and event logging for real machines (OPC-UA/MQTT bridges).",
+  "license": "Apache-2.0",
+  "author": "JMK",
+  "keywords": [
+    "node-red",
+    "vidgedb",
+    "digital-twin",
+    "timeseries",
+    "vql",
+    "industrial"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vidge-AI/VidgeDB.git",
+    "directory": "sdk-nodered"
+  },
+  "main": "nodes/vidgedb.js",
+  "files": [
+    "nodes/",
+    "examples/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test tests/vidgedb-node.test.js",
+    "test:unit": "node --test tests/vidgedb-node.test.js",
+    "test:flow": "node tests/run-flow-test.js"
+  },
+  "node-red": {
+    "nodes": {
+      "vidgedb": "nodes/vidgedb.js"
+    }
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "homepage": "https://github.com/Vidge-AI/VidgeDB/blob/main/sdk-nodered/README.md",
+  "bugs": {
+    "url": "https://github.com/Vidge-AI/VidgeDB/issues"
+  }
+}

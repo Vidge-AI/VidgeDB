@@ -1,0 +1,141 @@
+{
+  "label": "VidgeDB — telemetry ingest (MQTT in -> vidgedb-ingest)",
+  "enabled": true,
+  "type": "tab",
+  "info": "OPC-UA/MQTT-style telemetry into a VidgeDB digital twin:\n  mqtt-in (broker/PLC) -> vidgedb-ingest (spawned vidgedb --service plant.vdg --role ingest)\n  and one manual path: inject -> vidgedb-query -> debug.\nImport via Node-RED: Menu > Import > select this JSON.",
+  "nodes": [
+    {
+      "id": "vs_plant",
+      "type": "vidgedb-service",
+      "name": "Plant twin (writer)",
+      "binaryPath": "/usr/local/bin/vidgedb",
+      "dbPath": "/var/lib/vidgedb/plant.vdg",
+      "role": "ingest",
+      "agentId": "node-red-mqtt-bridge",
+      "retentionDays": 0,
+      "timeoutMs": 30000,
+      "autoRespawn": true
+    },
+    {
+      "id": "mqtt_in",
+      "type": "mqtt in",
+      "z": "vidge_ingest",
+      "name": "PLC telemetry",
+      "topic": "plant/motor77/current",
+      "qos": "1",
+      "datatype": "json",
+      "broker": "#",
+      "nl": false,
+      "rap": true,
+      "rh": 0,
+      "inputs": 0,
+      "x": 130,
+      "y": 120,
+      "wires": [["ing1"]]
+    },
+    {
+      "id": "ing1",
+      "type": "vidgedb-ingest",
+      "z": "vidge_ingest",
+      "name": "ingest current",
+      "service": "vs_plant",
+      "entity": "Motor77",
+      "signal": "current",
+      "x": 360,
+      "y": 120,
+      "wires": [["st1"]]
+    },
+    {
+      "id": "st1",
+      "type": "function",
+      "z": "vidge_ingest",
+      "name": "point -> [ts,value]",
+      "func": "msg.payload = [[Math.floor(Date.now()/1000), Number(msg.payload.value ?? msg.payload)]];\nreturn msg;",
+      "outputs": 1,
+      "x": 600,
+      "y": 120,
+      "wires": [["ing2"]]
+    },
+    {
+      "id": "ing2",
+      "type": "vidgedb-ingest",
+      "z": "vidge_ingest",
+      "name": "write series",
+      "service": "vs_plant",
+      "entity": "Motor77",
+      "signal": "current",
+      "x": 820,
+      "y": 120,
+      "wires": []
+    },
+    {
+      "id": "inj_q",
+      "type": "inject",
+      "z": "vidge_ingest",
+      "name": "run query",
+      "props": [{ "p": "payload" }],
+      "repeat": "",
+      "once": false,
+      "topic": "",
+      "payload": "MATCH (m:Motor) WHERE m.name = \"Motor77\" RETURN name, props",
+      "payloadType": "str",
+      "x": 130,
+      "y": 260,
+      "wires": [["q1"]]
+    },
+    {
+      "id": "q1",
+      "type": "vidgedb-query",
+      "z": "vidge_ingest",
+      "name": "VQL query",
+      "service": "vs_plant",
+      "x": 340,
+      "y": 260,
+      "wires": [["dbg1"]]
+    },
+    {
+      "id": "dbg1",
+      "type": "debug",
+      "z": "vidge_ingest",
+      "name": "rows",
+      "active": true,
+      "complete": "payload",
+      "x": 520,
+      "y": 260,
+      "wires": []
+    },
+    {
+      "id": "chk1",
+      "type": "vidgedb-check",
+      "z": "vidge_ingest",
+      "name": "spec check current",
+      "service": "vs_plant",
+      "x": 360,
+      "y": 360,
+      "wires": [["sw1"]]
+    },
+    {
+      "id": "sw1",
+      "type": "switch",
+      "z": "vidge_ingest",
+      "name": "any violation?",
+      "property": "violations[0]",
+      "propertyType": "msg",
+      "rules": [{ "t": "nnull" }, { "t": "else" }],
+      "x": 580,
+      "y": 360,
+      "wires": [["dbg2"], []]
+    },
+    {
+      "id": "dbg2",
+      "type": "debug",
+      "z": "vidge_ingest",
+      "name": "ALERT",
+      "active": true,
+      "complete": "violations",
+      "x": 760,
+      "y": 360,
+      "wires": []
+    }
+  ]
+}

@@ -1,0 +1,167 @@
+# VidgeDB release — artefacts prêts à l'emploi (pas de compilation chez l'utilisateur).
+#
+# Déclenchement : pousser un tag `v*` (ex. `git tag v0.1.0 && git push --tags`),
+# ou lancer le workflow à la main (workflow_dispatch).
+#
+# DEUX ARTEFACTS PAR PLATEFORME depuis la feature `opcua` (2026-10-06) :
+#   - `vidgedb`        : core, SANS OPC-UA  (1,24 Mo mesuré sur x86_64)
+#   - `vidgedb-opcua`  : avec serveur OPC-UA (14 Mo mesuré)
+# Les deux sont construits depuis le même code : `--no-default-features` (core) et
+# défaut/`--features opcua` (opcua). Règle produit : un petit binaire au centre.
+#
+# Ce que le workflow produit :
+#   - vidgedb-linux-x86_64.tar.gz        (binaire gnu, PC/serveur Linux)
+#   - vidgedb-linux-aarch64-musl.tar.gz  (statique, Raspberry Pi 4/5/Zero 2)
+#   - vidgedb-windows-x86_64.zip         (vidgedb.exe, cross-compilé via mingw)
+#   - vidgedb-macos-*.tar.gz     (build natif du runner)
+#   - image conteneur  ghcr.io/<owner>/vidgedb:<tag>  (le "un clic" universel)
+#
+# STATUT DE VÉRIFICATION (honnête, 2026-10-06) :
+#   - linux x86_64        : vérifié localement (215 tests, binaire release)
+#   - linux aarch64-musl  : vérifié localement (build P16 antérieur → à rebuild)
+#   - windows x86_64-gnu  : cross-build VÉRIFIÉ localement — vidgedb.exe PE32+ x86-64,
+#                           18 Mo, imports kernel32/ws2_32/advapi32/crypt32, OPC-UA présent.
+#                           Attention : sur une VM 3,8 Go il faut 8 Go de swap
+#                           (openssl-sys vendored + LTO) — sinon OOM (exit -9).
+#                           En CI (ubuntu-latest, 16 Go) aucun problème attendu.
+#   - macOS               : NON vérifié (pas de machine) — build natif runner, à confirmer au 1er tag
+#   - conteneur           : Dockerfile vérifié localement (build + run + refus sans token)
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # ------------------------------------------------------------------
+  # Linux x86_64 + aarch64 (musl statique) + Windows (cross mingw)
+  # ------------------------------------------------------------------
+  binaries:
+    name: ${{ matrix.artifact }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - artifact: linux-x86_64
+            target: x86_64-unknown-linux-gnu
+            apt: ""
+          - artifact: linux-aarch64-musl
+            target: aarch64-unknown-linux-musl
+            apt: ""
+          - artifact: windows-x86_64
+            target: x86_64-pc-windows-gnu
+            apt: gcc-mingw-w64-x86-64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable + target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl build deps
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Install cross toolchain (mingw)
+        if: matrix.apt != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt }}
+
+      - name: cargo build --release
+        run: cargo build --release --target ${{ matrix.target }} --bin vidgedb
+
+      - name: Package
+        run: |
+          set -eu
+          BIN=target/${{ matrix.target }}/release/vidgedb
+          if [ -f "${BIN}.exe" ]; then BIN="${BIN}.exe"; fi
+          mkdir -p dist/vidgedb
+          cp "$BIN" dist/vidgedb/
+          cp README.md LICENSE* dist/vidgedb/ 2>/dev/null || true
+          cp -r docs dist/vidgedb/docs 2>/dev/null || true
+          cp -r examples scripts dist/vidgedb/ 2>/dev/null || true
+          cd dist
+          if [ "${{ matrix.artifact }}" = "windows-x86_64" ]; then
+            zip -r "vidgedb-${{ matrix.artifact }}.zip" vidgedb
+          else
+            tar czf "vidgedb-${{ matrix.artifact }}.tar.gz" vidgedb
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vidgedb-${{ matrix.artifact }}
+          path: dist/vidgedb-${{ matrix.artifact }}.*
+
+  # ------------------------------------------------------------------
+  # macOS (build natif runner — non vérifié localement, cf. en-tête)
+  # ------------------------------------------------------------------
+  macos:
+    name: macos-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+          - arch: x86_64
+            runner: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --bin vidgedb
+      - run: |
+          mkdir -p dist/vidgedb && cp target/release/vidgedb dist/vidgedb/
+          cp README.md LICENSE* dist/vidgedb/ 2>/dev/null || true
+          cd dist && tar czf "vidgedb-macos-${{ matrix.arch }}.tar.gz" vidgedb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vidgedb-macos-${{ matrix.arch }}
+          path: dist/vidgedb-macos-${{ matrix.arch }}.tar.gz
+
+  # ------------------------------------------------------------------
+  # Conteneur — le "un clic" universel (Docker Desktop sur Windows/macOS)
+  # ------------------------------------------------------------------
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ------------------------------------------------------------------
+  # Publication de la release GitHub (les artefacts ci-dessus attachés)
+  # ------------------------------------------------------------------
+  release:
+    needs: [binaries, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

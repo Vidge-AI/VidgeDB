@@ -1,0 +1,20 @@
+/target
+/graphify-out
+
+# Bases de test : ce sont des artefacts, pas des sources.
+*.vdg
+*.vdg-wal
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store

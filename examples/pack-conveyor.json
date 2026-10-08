@@ -1,0 +1,302 @@
+{
+  "pack": "conveyor",
+  "pack_version": 1,
+  "title": "PACK MACHINE #1 — conveyor line (PLC / drive / motor / belt / 4 sensors / palletizing robot)",
+  "description": "Machine-twin #1 for Vidge Plant Management: a minimalist AND realistic conveyoring line. Lineage: spec.md \u00a758 (PLC01 -Drive12> Motor42 -Pump17) generalized to machine-agnostic entity types (PLC, Drive, Motor, Conveyor, Sensor, Robot). Loaded by scripts/pack_load.py over line-delimited JSON-RPC 2.0 (vidgedb --service), read back with VidgeQL.",
+  "ts_base": 1760000000,
+  "notes": {
+    "props_cap": "EMOT01 props are EXACTLY at the Phase-2 inline cap: 'spec.current.max=3' (19B) + 'spec.temperature.max=60' (24B) = 43B <= 44B (stores.rs ENTITY_CELL-20). '3' not '3.0' would push it to 45B and fail — the byte budget is part of the pack story (docs/pack-conveyor.md).",
+    "units": "spec.<signal>.unit props of these two signals would exceed the cap, so units (A, C, mm/s) live in the specs table + sensors_signals here and in the pack doc.",
+    "series_owner": "EMOT01.current / EMOT01.temperature land on the MOTOR (drive readback + PT100 via the drive over profinet) so that 'CHECK EMOT01.current' and diagnose(EMOT01) work as mandated. Vibration keeps its own sensor-local series SEN03.vibration with its spec prop on SEN03.",
+    "determinism": "Every scenario samples 500 points per series at dt=7 s over the hour grid [ts_start, ts_start+3493]. Seeds derive from (scenario_index*100 + series_index); waypoint noise seeds from the same formula, so loader runs are reproducible bit-for-bit.",
+    "shapes": "wave = base + amp*sin + noise (clamped) for healthy regimes; waypoints = piecewise-linear story (frac, value) for jam/overheat/fault profiles; pulse = piece-cadence square wave.",
+    "events": "log_event details are truncated by statestore.rs DETAILS_INLINE_MAX=20B; all message templates stay <=20 bytes. Alarm events are COMPUTED by the loader from threshold crossings of the generated points (rise/clear), provenance Event=5 — never hand-written into the JSON."
+  },
+  "entities": [
+    {
+      "name": "PLC01",
+      "type": "PLC",
+      "props": {
+        "vendor": "Siemens",
+        "model": "S7-1200",
+        "fw": "V4.4"
+      },
+      "doc": "Line controller. Owns both network:profinet links (drive telegram + robot control)."
+    },
+    {
+      "name": "DRIV01",
+      "type": "Drive",
+      "props": {
+        "vendor": "Siemens",
+        "model": "SINAMICS-G120"
+      },
+      "doc": "Variable-frequency drive. Electrically feeds EMOT01; current + speed readbacks surface over profinet."
+    },
+    {
+      "name": "EMOT01",
+      "type": "Motor",
+      "props": {
+        "spec.current.max": "3",
+        "spec.temperature.max": "60"
+      },
+      "doc": "1.5 kW 3-phase induction motor, 1500 rpm, 2.9 A nominal. Spec max current = 2.9 A x 1.05 margin rounded to 3.0 A; max PT100 temperature 60 C at 40 C ambient. 43B props (at the cap)."
+    },
+    {
+      "name": "CONV01",
+      "type": "Conveyor",
+      "props": {
+        "belt": "PU",
+        "len_m": "3.5",
+        "v_min": "0.2",
+        "v_max": "0.5"
+      },
+      "doc": "Conveyor section 1: mechanical M/M construction, PU belt, 3.5 m, speed range 0.2-0.5 m/s."
+    },
+    {
+      "name": "SEN01",
+      "type": "Sensor",
+      "props": {
+        "kind": "photoelectric",
+        "supply": "24V"
+      },
+      "doc": "Photoelectric piece-presence sensor at belt start, 24 V discrete."
+    },
+    {
+      "name": "SEN02",
+      "type": "Sensor",
+      "props": {
+        "kind": "inductive",
+        "detect": "metal"
+      },
+      "doc": "Inductive (metal-detect) sensor mid-belt, 24 V discrete."
+    },
+    {
+      "name": "SEN03",
+      "type": "Sensor",
+      "props": {
+        "kind": "accel",
+        "spec.vibration.max": "2.5"
+      },
+      "doc": "Motor-case vibration sensor, 4-20 mA loop scaled to mm/s RMS. ISO 10816-3 zone A/B boundary 2.5 mm/s for small machines. Carries its own spec prop (the motor props block is full)."
+    },
+    {
+      "name": "SEN04",
+      "type": "Sensor",
+      "props": {
+        "kind": "PT100",
+        "loop": "4-20mA"
+      },
+      "doc": "PT100 motor temperature probe wired into the drive (G120 analog input); value surfaces as EMOT01.temperature over profinet."
+    },
+    {
+      "name": "ROB01",
+      "type": "Robot",
+      "props": {
+        "vendor": "ABB",
+        "axes": "6",
+        "payload_kg": "12"
+      },
+      "doc": "6-axis palletizing robot (KUKA/ABB class), 12 kg payload, at the line end: takes pieces off CONV01 toward the packing zone. Controlled by PLC01."
+    }
+  ],
+  "relations": [
+    { "from": "PLC01", "to": "DRIV01", "type": "network:profinet" },
+    { "from": "PLC01", "to": "ROB01", "type": "network:profinet" },
+    { "from": "DRIV01", "to": "EMOT01", "type": "electrical:feeds" },
+    { "from": "EMOT01", "to": "CONV01", "type": "mechanical:drives" },
+    { "from": "SEN01", "to": "CONV01", "type": "instrumentation:measures" },
+    { "from": "SEN02", "to": "CONV01", "type": "instrumentation:measures" },
+    { "from": "SEN03", "to": "EMOT01", "type": "instrumentation:measures" },
+    { "from": "SEN04", "to": "EMOT01", "type": "instrumentation:measures" },
+    { "from": "ROB01", "to": "CONV01", "type": "process:palletizes" }
+  ],
+  "specs": [
+    {
+      "entity": "EMOT01",
+      "signal": "current",
+      "comparison": "max",
+      "value": 3.0,
+      "unit": "A",
+      "note": "Nominal 2.9 A x 1.05 service margin, rounded to 3.0 A (IEC 60034 duty S1). Stored as the entity prop spec.current.max=3 (the value the CHECK engine reads; unit would exceed the 44B props cap, kept here + in the doc)."
+    },
+    {
+      "entity": "EMOT01",
+      "signal": "temperature",
+      "comparison": "max",
+      "value": 60.0,
+      "unit": "C",
+      "note": "PT100 motor-body limit: class F winding with B temperature-rise budget at 40 C ambient. Stored as spec.temperature.max=60 (unit dropped for the cap)."
+    },
+    {
+      "entity": "SEN03",
+      "signal": "vibration",
+      "comparison": "max",
+      "value": 2.5,
+      "unit": "mm/s",
+      "note": "ISO 10816-3 / ISO 20816-3 zone A to B boundary for small machines (< 15 kW), RMS."
+    }
+  ],
+  "sensors_signals": [
+    {
+      "sensor": "SEN01",
+      "measures_entity": "CONV01",
+      "signal": "presence",
+      "series": "SEN01.presence",
+      "unit": "0/1",
+      "kind": "photoelectric, 24 V discrete, one pulse per piece"
+    },
+    {
+      "sensor": "SEN02",
+      "measures_entity": "CONV01",
+      "signal": "metal",
+      "series": "SEN02.metal",
+      "unit": "0/1",
+      "kind": "inductive (metal), 24 V discrete"
+    },
+    {
+      "sensor": "SEN03",
+      "measures_entity": "EMOT01",
+      "signal": "vibration",
+      "series": "SEN03.vibration",
+      "unit": "mm/s",
+      "kind": "accelerometer, 4-20 mA loop scaled to mm/s RMS at the sensor (series stays sensor-local)"
+    },
+    {
+      "sensor": "SEN04",
+      "measures_entity": "EMOT01",
+      "signal": "temperature",
+      "series": "EMOT01.temperature",
+      "unit": "C",
+      "kind": "PT100 wired into the DRIV01 analog input; value lands on the motor series over profinet"
+    },
+    {
+      "sensor": "DRIV01",
+      "measures_entity": "EMOT01",
+      "signal": "current",
+      "series": "EMOT01.current",
+      "unit": "A",
+      "kind": "drive phase-current readback (RMS) over profinet; lands on the motor series"
+    },
+    {
+      "sensor": "DRIV01",
+      "measures_entity": "CONV01",
+      "signal": "speed",
+      "series": "CONV01.speed",
+      "unit": "m/s",
+      "kind": "encoder belt-speed readback over profinet"
+    }
+  ],
+  "alarm_rules": [
+    {
+      "name": "alarm_current_max",
+      "entity": "EMOT01",
+      "signal": "current",
+      "series": "EMOT01.current",
+      "threshold": 3.0,
+      "detail": "I={obs}A>{thr}A",
+      "detail_clear": "I={obs}A<={thr}A"
+    },
+    {
+      "name": "alarm_temperature_max",
+      "entity": "EMOT01",
+      "signal": "temperature",
+      "series": "EMOT01.temperature",
+      "threshold": 60.0,
+      "detail": "T={obs}C>{thr}C",
+      "detail_clear": "T={obs}C<={thr}C"
+    },
+    {
+      "name": "alarm_vibration_max",
+      "entity": "SEN03",
+      "signal": "vibration",
+      "series": "SEN03.vibration",
+      "threshold": 2.5,
+      "detail": "V={obs}>{thr}",
+      "detail_clear": "V={obs}<={thr}"
+    }
+  ],
+  "states_packbase": [
+    { "entity": "PLC01", "key": "mode", "value": "AUTO", "offset_s": -60 },
+    { "entity": "CONV01", "key": "state", "value": "STOPPED", "offset_s": -60 },
+    { "entity": "EMOT01", "key": "state", "value": "STANDBY", "offset_s": -60 },
+    { "entity": "ROB01", "key": "state", "value": "IDLE", "offset_s": -60 }
+  ],
+  "demo_scenarios": [
+    {
+      "name": "normal",
+      "description": "Healthy hour: 2.5-2.9 A, < 2 mm/s vibration, 40-55 C, regular piece cadence (one piece per 30 s, all metal). Every check OK, zero alarm events.",
+      "ts_start": 1760000000,
+      "duration_s": 3600,
+      "points_per_series": 500,
+      "dt_s": 7,
+      "seed": 10,
+      "signals": {
+        "EMOT01.current": { "shape": "wave", "base": 2.7, "amp": 0.12, "noise": 0.07, "period_s": 1200, "min": 2.5, "max": 2.9, "dec": 2 },
+        "EMOT01.temperature": { "shape": "wave", "base": 47.0, "amp": 6.0, "noise": 0.8, "period_s": 3600, "min": 40.0, "max": 55.0, "dec": 1 },
+        "CONV01.speed": { "shape": "wave", "base": 0.44, "amp": 0.02, "noise": 0.01, "period_s": 900, "min": 0.4, "max": 0.47, "dec": 3 },
+        "SEN03.vibration": { "shape": "wave", "base": 1.3, "amp": 0.3, "noise": 0.15, "period_s": 1800, "min": 0.8, "max": 1.9, "dec": 2 },
+        "SEN01.presence": { "shape": "pulse", "period_s": 30, "duty": 0.28, "jitter": 0.0 },
+        "SEN02.metal": { "shape": "pulse", "period_s": 30, "duty": 0.25, "jitter": 0.0 }
+      },
+      "states": [
+        { "entity": "CONV01", "key": "state", "value": "MOVING", "offset_s": 0 },
+        { "entity": "EMOT01", "key": "state", "value": "RUNNING", "offset_s": 0 }
+      ],
+      "events": [
+        { "name": "run_start", "entity": "CONV01", "offset_s": 0, "details": "run A started" },
+        { "name": "pallet_full", "entity": "ROB01", "offset_s": 1800, "details": "box 40 stacked" },
+        { "name": "run_end", "entity": "CONV01", "offset_s": 3493, "details": "run A complete" }
+      ]
+    },
+    {
+      "name": "overload",
+      "description": "Stick-slip jam hour: rollers seize — the drive current oscillates in the 3.2-4.1 A band (peaks vs spec 3.0 A => CHECK VIOLATION), with brief recoveries to ~2.8-2.9 A between stick episodes; vibration 2.4-3.5 mm/s (spec 2.5 => VIOLATION); belt speed sags to ~0.35 m/s; temperature climbs to 58 C but stays under its 60 C limit (OK). Threshold crossings are logged as alarm_current_max(+/clear) and alarm_vibration_max(+/clear) events, provenance Event.",
+      "ts_start": 1760007200,
+      "duration_s": 3600,
+      "points_per_series": 500,
+      "dt_s": 7,
+      "seed": 20,
+      "signals": {
+        "EMOT01.current": { "shape": "waypoints", "points": [[0.0, 2.8], [0.04, 3.45], [0.2, 4.05], [0.28, 2.95], [0.45, 3.95], [0.55, 2.9], [0.72, 4.1], [0.8, 3.3], [1.0, 3.6]], "noise": 0.03, "min": 2.75, "max": 4.1, "dec": 2 },
+        "EMOT01.temperature": { "shape": "waypoints", "points": [[0.0, 45.0], [0.5, 56.5], [0.85, 58.0], [1.0, 52.0]], "noise": 0.3, "min": 44.0, "max": 58.5, "dec": 1 },
+        "CONV01.speed": { "shape": "waypoints", "points": [[0.0, 0.45], [0.06, 0.36], [0.5, 0.34], [0.8, 0.37], [1.0, 0.35]], "noise": 0.004, "min": 0.32, "max": 0.45, "dec": 3 },
+        "SEN03.vibration": { "shape": "waypoints", "points": [[0.0, 1.2], [0.05, 2.6], [0.25, 3.4], [0.35, 2.4], [0.6, 3.3], [0.7, 2.35], [0.85, 3.5], [1.0, 3.2]], "noise": 0.04, "min": 2.3, "max": 3.5, "dec": 2 },
+        "SEN01.presence": { "shape": "pulse", "period_s": 19, "duty": 0.85, "jitter": 0.2 },
+        "SEN02.metal": { "shape": "pulse", "period_s": 19, "duty": 0.8, "jitter": 0.2 }
+      },
+      "states": [
+        { "entity": "EMOT01", "key": "state", "value": "RUNNING", "offset_s": 0 },
+        { "entity": "CONV01", "key": "state", "value": "SLOWED", "offset_s": 0 }
+      ],
+      "events": [
+        { "name": "run_degraded", "entity": "PLC01", "offset_s": 120, "details": "line jam events" }
+      ]
+    },
+    {
+      "name": "overheating",
+      "description": "Cooling-fault hour: the cabinet fan fails (cooling_fault event at +60 s) — the motor body climbs from 52 C past the 60 C limit (~+590 s, alarm_temperature_max rise logged), keeps 65-80 C (peaks 80.0 C vs spec 60 => CHECK VIOLATION), the drive trips thermally at ~+3248 s (thermal_trip event, EMOT01.state=TRIPPED_THERMAL, belt stops), and the body cools back under 60 C (alarm clear logged) while current stays nominal before the trip (2.6-2.9 A => OK) and vibration stays < 2.5 mm/s (OK).",
+      "ts_start": 1760014400,
+      "duration_s": 3600,
+      "points_per_series": 500,
+      "dt_s": 7,
+      "seed": 30,
+      "signals": {
+        "EMOT01.current": { "shape": "waypoints", "points": [[0.0, 2.7], [0.5, 2.72], [0.9, 2.85], [0.93, 2.8], [0.94, 0.4], [1.0, 0.3]], "noise": 0.03, "min": 0.25, "max": 2.9, "dec": 2 },
+        "EMOT01.temperature": { "shape": "waypoints", "points": [[0.0, 52.0], [0.17, 60.5], [0.83, 80.0], [0.93, 80.0], [1.0, 58.0]], "noise": 0.2, "min": 51.5, "max": 80.0, "dec": 1 },
+        "CONV01.speed": { "shape": "waypoints", "points": [[0.0, 0.45], [0.9, 0.44], [0.94, 0.0], [1.0, 0.0]], "noise": 0.003, "min": 0.0, "max": 0.45, "dec": 3 },
+        "SEN03.vibration": { "shape": "waypoints", "points": [[0.0, 1.7], [0.5, 1.6], [0.93, 1.8], [0.94, 0.1], [1.0, 0.05]], "noise": 0.05, "min": 0.05, "max": 1.9, "dec": 2 },
+        "SEN01.presence": { "shape": "pulse", "period_s": 30, "duty": 0.28, "jitter": 0.05 },
+        "SEN02.metal": { "shape": "pulse", "period_s": 30, "duty": 0.25, "jitter": 0.05 }
+      },
+      "states": [
+        { "entity": "EMOT01", "key": "state", "value": "RUNNING", "offset_s": 0 },
+        { "entity": "EMOT01", "key": "state", "value": "TRIPPED_THERMAL", "offset_s": 3248 },
+        { "entity": "CONV01", "key": "state", "value": "STOPPED", "offset_s": 3248 }
+      ],
+      "events": [
+        { "name": "cooling_fault", "entity": "EMOT01", "offset_s": 60, "details": "fan fault alarm" },
+        { "name": "thermal_trip", "entity": "EMOT01", "offset_s": 3248, "details": "T>60C sustained" }
+      ]
+    }
+  ]
+}

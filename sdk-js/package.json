@@ -1,0 +1,54 @@
+{
+  "name": "vidgedb",
+  "version": "0.1.0",
+  "description": "JavaScript/TypeScript client for VidgeDB — drive the `vidgedb --service` JSON-RPC subprocess from Node. Zero runtime dependencies (ESM + CJS, typed).",
+  "author": "JMK",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && sh scripts/fixup-cjs.sh",
+    "test": "npm run -s build && node --test --experimental-strip-types tests/test_sdk.test.ts",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "vidgedb",
+    "database",
+    "json-rpc",
+    "agent",
+    "time-series",
+    "graph",
+    "digital-twin",
+    "industrial"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vidge-AI/VidgeDB.git",
+    "directory": "sdk-js"
+  },
+  "homepage": "https://github.com/Vidge-AI/VidgeDB/blob/main/sdk-js/README.md",
+  "bugs": {
+    "url": "https://github.com/Vidge-AI/VidgeDB/issues"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "^5.9.2"
+  }
+}
