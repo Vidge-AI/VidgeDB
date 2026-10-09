@@ -97,7 +97,14 @@ jobs:
       - name: "Failure diagnosis (emits the cause as readable annotations)"
         if: failure()
         run: |
-          grep -E "^error|error\[|error:|warning: unused" build-output.log | tail -20 | while IFS= read -r line; do echo "::error::$line"; done
+          grep -E "^error|error\[|error:|warning: unused" build-output.log | tail -20 | while IFS= read -r line; do echo "::error::$line"; done || true
+
+      - name: Upload build log artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.artifact }}
+          path: build-output.log
 
       - name: Package
         run: |
