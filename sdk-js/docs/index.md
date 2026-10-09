@@ -26,8 +26,8 @@ await db.close();
 npm install vidgedb
 ```
 
-Not on npm yet at `v0.1.0` — from the repository: `cd js && npm install && npm run build`.
-See [../../docs/installation.md](../../docs/installation.md) §2.
+To build from source instead of npm: `cd sdk-js && npm install && npm run build`.
+See [installation](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/installation.md) §2.
 
 The client also needs the **engine binary**, resolved as: `opts.bin` → `$VIDGEDB_BIN` →
 `vidgedb` on `PATH`. Unlike Python (which raises at spawn), `VidgeDB.open` checks the
@@ -41,9 +41,9 @@ path up-front and throws a `VidgeDBError` with a readable message if it is missi
 | [errors.md](errors.md) | `VidgeDBError`, code semantics, the promise queue and timeouts |
 | [examples.md](examples.md) | runnable snippets: setup, streaming ingest, watchdog, Express bridge |
 
-Shared documentation: [architecture](../../docs/architecture.md) ·
-[protocol](../../docs/protocol.md) · [recipes](../../docs/recipes.md) ·
-[troubleshooting](../../docs/troubleshooting.md).
+Shared documentation: [architecture](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/architecture.md) ·
+[protocol](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/protocol.md) · [recipes](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/recipes.md) ·
+[troubleshooting](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/troubleshooting.md).
 
 ## Design in one paragraph
 

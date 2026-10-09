@@ -7,8 +7,8 @@ deviations, without writing a program.
 > **This is the only document for this package.** The Python and JavaScript clients ship
 > a multi-file `docs/` directory; the Node-RED package is a visual component, so one
 > file — this one — covers it. Shared background lives in
-> [../../docs/architecture.md](../../docs/architecture.md) and
-> [../../docs/protocol.md](../../docs/protocol.md).
+> [architecture](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/architecture.md) and
+> [protocol](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/protocol.md).
 
 ---
 
@@ -19,13 +19,12 @@ cd ~/.node-red
 npm install node-red-contrib-vidgedb
 ```
 
-Not in the Node-RED library yet at `v0.1.0` — install from this repository path until
-the first release, then restart Node-RED. The package declares `node-red.nodes` in its
+Install it from npm, then restart Node-RED. The package declares `node-red.nodes` in its
 `package.json`, which is what makes the palette entry appear.
 
 The nodes need the **engine binary**: the config node's `binaryPath` field, or
 `$VIDGEDB_BIN`, or `vidgedb` on `PATH`. See
-[../../docs/installation.md](../../docs/installation.md) §1.
+[installation](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/installation.md) §1.
 
 ## 2. The config node — `vidgedb-service`
 
@@ -108,7 +107,7 @@ protocol node is replaceable, the twin is not.
 
 Prerequisite for step 4 to answer anything other than `NO_SPEC`: the entity must carry
 `spec.current.max` — that is what `check` compares against (see
-[../../docs/protocol.md](../../docs/protocol.md) §4).
+[protocol](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/protocol.md) §4).
 
 ## 7. Traps that will bite a Node-RED user
 
@@ -116,7 +115,7 @@ Prerequisite for step 4 to answer anything other than `NO_SPEC`: the entity must
 |---|---|---|
 | `write forbidden` in the node status | the config node's role is `reader` | set `writer` or `ingest` |
 | `NO_SPEC` on every check | `spec.<signal>.max` missing on the entity | write it with a `vidgedb-query`/`upsert` call or the loader |
-| `unknown entity 'X'` | telemetry sent before the entity exists | create entities first (see [../../docs/recipes.md](../../docs/recipes.md) Recipe 1) |
+| `unknown entity 'X'` | telemetry sent before the entity exists | create entities first (see [recipes](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/recipes.md), Recipe 1) |
 | A check never fires the ALERT | the `switch` reads `msg.violations`, which is set **only** on `VIOLATION` | verify the status by wiring a debug on the check node itself |
 | The engine stops and the flow goes quiet | it exited; the config node respawns after 2.5 s | look at the config node's status dot |
 | Two flows writing at once | one engine per config node — pointing two flows at *different* config nodes on the **same** `.vdg` gives you a refusal (one writer per file) | share one config node |

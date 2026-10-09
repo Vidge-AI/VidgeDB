@@ -25,12 +25,12 @@ with VidgeDB("twin.vdg", agent_id="diag") as db:          # reader by default
 pip install vidgedb
 ```
 
-Not on PyPI yet at `v0.1.0` — from the repository: `cd python && pip install -e .`
-See [../../docs/installation.md](../../docs/installation.md) §2.
+Not on PyPI yet — install from the repository: `cd sdk-python && pip install -e .`
+See [installation](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/installation.md) §2.
 
 The client also needs the **engine binary**, resolved as: explicit `bin=` →
 `$VIDGEDB_BIN` → `vidgedb` on `PATH`. Without it, construction raises
-`FileNotFoundError`. See [../../docs/installation.md](../../docs/installation.md) §1-3.
+`FileNotFoundError`. See [installation](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/installation.md) §1-3.
 
 ## Documentation
 
@@ -40,9 +40,9 @@ The client also needs the **engine binary**, resolved as: explicit `bin=` →
 | [errors.md](errors.md) | `VidgeDBError`, the code semantics, the two error channels |
 | [examples.md](examples.md) | runnable snippets: setup, ingest loop, watchdog, retention |
 
-Shared documentation: [architecture](../../docs/architecture.md) ·
-[protocol](../../docs/protocol.md) · [recipes](../../docs/recipes.md) ·
-[troubleshooting](../../docs/troubleshooting.md).
+Shared documentation: [architecture](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/architecture.md) ·
+[protocol](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/protocol.md) · [recipes](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/recipes.md) ·
+[troubleshooting](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/troubleshooting.md).
 
 ## Design in one paragraph
 

@@ -1,7 +1,7 @@
 # vidgedb (JavaScript / TypeScript) — examples
 
 *Runnable snippets, from setup to an HTTP bridge. Shared background:
-[recipes](../../docs/recipes.md).*
+[recipes](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/recipes.md).*
 
 ---
 

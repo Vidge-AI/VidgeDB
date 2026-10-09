@@ -152,7 +152,7 @@ class CheckResult:
 ```
 
 Real output: `VIOLATION 10.0 11.7 1.6999999999999993` for `status, expected_max,
-observed, deviation`. Status semantics are in [../../docs/protocol.md](../../docs/protocol.md) §4.
+observed, deviation`. Status semantics are in [protocol](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/protocol.md) §4.
 
 The two provenance fields are not decoration: they let a report state that the expected
 value is a `Specification` and the measurement an `Observation`.
@@ -199,4 +199,4 @@ library. Anything claiming otherwise would be a fiction.
 - no validation of your VQL before sending it — the engine answers with a parse error
   inside `result`, which `call()` surfaces;
 - no hypotheses: there is no helper to write one, by design (see
-  [../../docs/architecture.md](../../docs/architecture.md) §4).
+  [architecture](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/architecture.md) §4).

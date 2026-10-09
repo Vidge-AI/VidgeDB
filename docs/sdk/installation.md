@@ -106,7 +106,7 @@ process own the child — which is what every client here does.
 pip install vidgedb
 ```
 
-**Not on PyPI yet as of v0.1.0** — see [publishing.md](publishing.md). Until then, from
+**Not on PyPI yet** — see [publishing.md](publishing.md). Until then, from
 this repository:
 
 ```bash
@@ -122,7 +122,7 @@ Python ≥ 3.9, zero runtime dependencies (stdlib only: `subprocess`, `json`,
 npm install vidgedb
 ```
 
-**Not on npm yet as of v0.1.0.** Until then, build from this repository:
+Build from source instead:
 
 ```bash
 cd js && npm install && npm run build

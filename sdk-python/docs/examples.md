@@ -1,7 +1,7 @@
 # vidgedb (Python) — examples
 
 *Runnable snippets, in the order you would use them. Shared background:
-[recipes](../../docs/recipes.md) (cross-language), [protocol](../../docs/protocol.md).*
+[recipes](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/recipes.md) (cross-language), [protocol](https://github.com/Vidge-AI/VidgeDB/blob/main/docs/sdk/protocol.md).*
 
 ---
 
