@@ -21,7 +21,13 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 fn bin() -> String {
-    std::env::var("VIDGEDB_BIN").unwrap_or_else(|_| "vidgedb".to_string())
+    match std::env::var("VIDGEDB_BIN") {
+        Ok(v) if !v.is_empty() => v,
+        _ => panic!(
+            "VIDGEDB_BIN is not set — these tests drive the real `vidgedb --service` binary; \
+             run with VIDGEDB_BIN=$PWD/target/release/vidgedb (see DEVELOPING.md)"
+        ),
+    }
 }
 
 fn tmp(name: &str) -> String {

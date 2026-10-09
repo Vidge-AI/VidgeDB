@@ -30,11 +30,14 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: cargo build --all-targets
-        run: cargo build --workspace --all-targets
+      - name: cargo build --release (all targets)
+        run: cargo build --workspace --release --all-targets
 
-      - name: cargo test --workspace
-        run: cargo test --workspace
+      - name: cargo test --release (VIDGEDB_BIN required by the subprocess tests)
+        shell: pwsh
+        run: |
+          $env:VIDGEDB_BIN = "$env:GITHUB_WORKSPACE/target/release/vidgedb"
+          cargo test --workspace --release
 
   nightly-slow:
     # CI nightly re-enables the #[ignore]-tagged slow tests (the ~497 s
@@ -47,8 +50,10 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: cargo build --all-targets
-        run: cargo build --workspace --all-targets
+      - name: cargo build --release (all targets)
+        run: cargo build --workspace --release --all-targets
 
-      - name: cargo test --workspace --include-ignored (nightly slow set)
-        run: cargo test --workspace -- --include-ignored
+      - name: cargo test --release --include-ignored (nightly slow set)
+        run: |
+          export VIDGEDB_BIN="$GITHUB_WORKSPACE/target/release/vidgedb"
+          cargo test --workspace --release -- --include-ignored
