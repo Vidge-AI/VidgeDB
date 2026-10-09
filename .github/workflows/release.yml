@@ -3,6 +3,10 @@
 # Déclenchement : pousser un tag `v*` (ex. `git tag v0.1.0 && git push --tags`),
 # ou lancer le workflow à la main (workflow_dispatch).
 #
+# Tag v* => binaire + conteneur + PUBLICATION NPM DES SDK (job npm-sdks, OIDC
+# "trusted publishing", aucun token npm ; le trust est déclaré côté npmjs.com :
+# repo Vidge-AI/VidgeDB, workflow release.yml, sans environment).
+#
 # DEUX ARTEFACTS PAR PLATEFORME depuis la feature `opcua` (2026-10-06) :
 #   - `vidgedb`        : core, SANS OPC-UA  (1,24 Mo mesuré sur x86_64)
 #   - `vidgedb-opcua`  : avec serveur OPC-UA (14 Mo mesuré)
@@ -148,6 +152,51 @@ jobs:
             ghcr.io/${{ github.repository }}:${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # ------------------------------------------------------------------
+  # Publication npm des SDK — OIDC "trusted publishing" (AUCUN token npm).
+  # Trust configuré côté npmjs.com : provider GitHub Actions, repo Vidge-AI/VidgeDB,
+  # workflow release.yml, SANS environment. Ne s'exécute QUE sur un tag v*
+  # (workflow_dispatch construit les binaires mais ne touche pas npm).
+  # ------------------------------------------------------------------
+  npm-sdks:
+    needs: [binaries]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write      # le seul droit dont le publish OIDC a besoin
+      contents: read       # checkout + lecture des artefacts du run
+      actions: read        # download-artifact depuis le même run
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # runtime >= 22.14 exigé par le publish OIDC
+      - name: "Upgrade npm CLI (OIDC requires npm >= 11.5.1)"
+        run: npm install -g npm@latest
+      - name: Fetch linux-x86_64 binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vidgedb-linux-x86_64
+          path: distbin
+      - name: Install binary on PATH for SDK tests
+        run: |
+          set -eu
+          tar xzf distbin/vidgedb-linux-x86_64.tar.gz -C distbin
+          sudo install -m 755 distbin/vidgedb/vidgedb /usr/local/bin/vidgedb
+          vidgedb --version
+          echo "VIDGEDB_BIN=$(command -v vidgedb)" >> "$GITHUB_ENV"
+      - name: "Test + publish sdk-js (vidgedb)"
+        working-directory: sdk-js
+        run: |
+          npm ci
+          npm test
+          npm publish
+      - name: "Test + publish sdk-nodered (node-red-contrib-vidgedb)"
+        working-directory: sdk-nodered
+        run: |
+          npm test
+          npm publish
 
   # ------------------------------------------------------------------
   # Publication de la release GitHub (les artefacts ci-dessus attachés)
