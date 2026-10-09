@@ -4,7 +4,7 @@
  *
  * Zero runtime dependencies: node:child_process + node:readline only.
  *
- *     import { VidgeDB, VidgeDBError } from "vidgedb";
+ *     import { VidgeDB, VidgeDBError } from "@vidge-ai/vidgedb";
  *
  *     await VidgeDB.with("/data/machine.vdg", { agentId: "my-agent" }, async (db) => {
  *       const report = await db.check("Motor42", "current", 1760000000, 1760025600);

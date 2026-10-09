@@ -5,7 +5,7 @@ with JSON-RPC 2.0. **Zero runtime dependencies** — `node:child_process` and
 `node:readline` only. Node ≥ 18, shipped as ESM **and** CJS with TypeScript types.
 
 ```js
-import { VidgeDB } from "vidgedb";           // const { VidgeDB } = require("vidgedb");
+import { VidgeDB } from "@vidge-ai/vidgedb"; // const { VidgeDB } = require("@vidge-ai/vidgedb");
 
 const w = VidgeDB.open("twin.vdg", { agentId: "setup", role: "ingest" });
 console.log(await w.upsertEntity("Motor42", "Motor",
@@ -23,7 +23,7 @@ await db.close();
 ## Install
 
 ```bash
-npm install vidgedb
+npm install @vidge-ai/vidgedb
 ```
 
 To build from source instead of npm: `cd sdk-js && npm install && npm run build`.

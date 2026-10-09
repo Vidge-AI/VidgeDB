@@ -76,6 +76,13 @@ impl Superblock {
             return Err(PageError::BadMagic);
         }
         let version = u32::from_le_bytes(page.data[4..8].try_into().unwrap());
+        // The WAL refuses unknown opcodes (fail-closed); the file itself must
+        // be just as strict — a superblock from a NEWER build opens into a
+        // layout this build misreads. (Audit 2026-10-09: version was decoded
+        // and never checked.)
+        if version != 1 {
+            return Err(PageError::UnsupportedVersion(version));
+        }
         let ps = u32::from_le_bytes(page.data[8..12].try_into().unwrap());
         if ps as usize != PAGE_SIZE {
             return Err(PageError::BadPageSize(ps));
@@ -92,6 +99,8 @@ impl Superblock {
 pub enum PageError {
     /// File is not a .vdg database (magic mismatch).
     BadMagic,
+    /// Superblock format version this build cannot read (fail-closed).
+    UnsupportedVersion(u32),
     /// Page size differs from this build's PAGE_SIZE.
     BadPageSize(u32),
     /// PageId out of range for the current file.
@@ -382,7 +391,7 @@ impl Pager {
         if self.scratch.is_empty() {
             return Ok(());
         }
-        let mut claims: Vec<PageId> = Vec::new();
+        let mut claims: Vec<(PageId, Page)> = Vec::new();
         let mut head = self.sb.freelist_head;
         for &id in self.scratch.iter().rev() {
             if id != 0
@@ -397,7 +406,7 @@ impl Pager {
                     data: page.data.to_vec(),
                 })?;
                 head = id;
-                claims.push(id);
+                claims.push((id, page));
             }
         }
         if claims.is_empty() {
@@ -409,9 +418,18 @@ impl Pager {
         })?;
         wal.commit()?;
         wal.sync()?;
-        for id in &claims {
+        // Audit 2026-10-09 (bug c1, CONFIRMED by tests/probe-style scenario →
+        // phase94 regression): the node page MUST reach the pager cache, not
+        // only the WAL. Until now the head was advanced with the node page
+        // still zeros on disk (never staged): a later checkpoint() truncated
+        // the WAL — the only copy — and the reopen failed closed with
+        // FreelistCorrupt (head pointing at a zero page). Staged AFTER the
+        // successful sync so a failed journal leaves no cache trace.
+        for (id, page) in &claims {
             self.scratch.retain(|&p| p != *id);
             self.freelist.push(*id);
+            self.clean.remove(id);
+            self.dirty.insert(*id, page.clone());
         }
         self.sb.freelist_head = head;
         Ok(())
@@ -457,10 +475,29 @@ impl Pager {
                 page_count = page_count.max(t + 1);
             }
         }
+        // Head rule (probe c2 CONFIRMED 2026-10-09: this fold is the commit
+        // counterpart of commit_alloc, not a mirror snapshot):
+        // 1. a freed page lands on the chain -> its id is the new head;
+        // 2. a recycled-reserve fold covers this tx's mirror pop: head =
+        //    the CURRENT CHAIN TAIL (mirror.first()), exactly what
+        //    commit_alloc advances the live sb to;
+        // 3. neither -> head unchanged. Cloning the raw mirror here journaled
+        //    a head the live sb never took when the two disagreed after a
+        //    ROLLBACK of another tx's recycled reserve (mirror restored the
+        //    rolled-back id, the committed head pointed PAST it): the replay
+        //    then chained a zeroed page -> FreelistCorrupt, and a later
+        //    checkpoint permanently sealed the divergence.
+        let freelist_head = if let Some(&f) = freed.last() {
+            f
+        } else if taken.iter().any(|&t| self.pending_recycle.contains(&t)) {
+            mirror.first().copied().unwrap_or(NULL_PAGE)
+        } else {
+            self.sb.freelist_head
+        };
         Superblock {
             version: self.sb.version,
             page_count,
-            freelist_head: mirror.last().copied().unwrap_or(NULL_PAGE),
+            freelist_head,
         }
     }
 
@@ -619,6 +656,14 @@ impl Pager {
 
     pub fn freelist_len(&self) -> usize {
         self.freelist.len()
+    }
+
+    /// Phase 94: whether `id` is currently a node of the durable freelist
+    /// mirror (data writes onto such a page would destroy the chain node —
+    /// refused by `Engine::write_in_tx` at CALL time, fail-closed at reopen
+    /// otherwise).
+    pub(crate) fn freelist_contains(&self, id: PageId) -> bool {
+        self.freelist.contains(&id)
     }
 
     /// Whether the on-disk freelist chain parsed cleanly at reload time;

@@ -468,6 +468,20 @@ impl Engine {
         self.pager.flush_bounded(final_sb.page_count)?;
         self.pending_allocs
             .retain(|p| !taken.contains(p) && !freed.contains(p));
+        // Audit 2026-10-09 (probe c2): the LIVE pager sb must equal the sb
+        // this commit journaled — a divergence is exactly the head/candidate
+        // bug this assert pins, and it must surface HERE (in tests) instead
+        // of as a reopen-time FreelistCorrupt.
+        debug_assert_eq!(
+            self.pager.superblock().freelist_head,
+            final_sb.freelist_head,
+            "commit journaled a superblock it did not apply live (head)"
+        );
+        debug_assert_eq!(
+            self.pager.superblock().page_count,
+            final_sb.page_count,
+            "commit journaled a superblock it did not apply live (page_count)"
+        );
         // 6) Checkpoint when the log grows past the threshold.
         let log_len = std::fs::metadata(self.wal.path())
             .map(|m| m.len())
@@ -558,12 +572,21 @@ impl Engine {
     }
 
     /// Buffer a page write inside the transaction (applied at commit).
+    /// Phase 94 guard (probe + audit follow-up): a page that IS a freelist
+    /// node now (durable mirror) or BECOMES one in this tx (`tx.freed`) must
+    /// not be data-written — the last SetPage frame of the commit would
+    /// overwrite the node bytes, the replay would chain a data page and the
+    /// reopen would fail closed with FreelistCorrupt. The failure is moved
+    /// to the CALL (readable, in-session) instead of reopen time.
     pub fn write_in_tx<F: FnOnce(&mut [u8; PAGE_SIZE])>(
         &mut self,
         tx: &mut Tx,
         id: PageId,
         f: F,
     ) -> Result<(), EngineError> {
+        if tx.freed.contains(&id) || self.pager.freelist_contains(id) {
+            return Err(EngineError::Page(PageError::FreelistCorrupt));
+        }
         // Start from the pager's current view (dirty or disk).
         let mut data = self.pager.read(id)?.data;
         f(&mut data);

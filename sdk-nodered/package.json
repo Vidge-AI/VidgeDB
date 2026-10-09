@@ -1,6 +1,10 @@
 {
-  "name": "node-red-contrib-vidgedb",
-  "version": "0.1.2",
+  "name": "@vidge-ai/node-red-contrib-vidgedb",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "version": "0.1.0",
   "description": "Node-RED nodes for VidgeDB: visual connector to a VidgeDB digital-twin database over the JSON-RPC 2.0 stdin/stdout service (spawn managed as a subprocess). Query, ingest telemetry, deviation checks and event logging for real machines (OPC-UA/MQTT bridges).",
   "license": "Apache-2.0",
   "author": "JMK",

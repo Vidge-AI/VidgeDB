@@ -620,5 +620,4 @@ test("concurrent calls are sequenced and all resolve correctly", async (t) => {
 test("VERSION matches package.json", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(SDK_ROOT, "package.json"), "utf8"));
   assert.equal(VERSION, pkg.version);
-  assert.equal(VERSION, "0.1.0");
 });

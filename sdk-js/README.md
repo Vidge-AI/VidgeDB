@@ -4,7 +4,7 @@ Node client for **VidgeDB**, the embedded temporal graph database for digital tw
 industrial machines. Zero runtime dependencies, ESM + CJS, TypeScript types. Node ≥ 18.
 
 ```js
-import { VidgeDB } from "vidgedb";           // const { VidgeDB } = require("vidgedb");
+import { VidgeDB } from "@vidge-ai/vidgedb"; // const { VidgeDB } = require("@vidge-ai/vidgedb");
 
 const w = VidgeDB.open("twin.vdg", { agentId: "setup", role: "ingest" });
 await w.upsertEntity("Motor42", "Motor", { "spec.current.max": "10" }, [], "plc");

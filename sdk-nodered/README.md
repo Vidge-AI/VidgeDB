@@ -1,4 +1,4 @@
-# node-red-contrib-vidgedb
+# @vidge-ai/node-red-contrib-vidgedb
 
 Node-RED nodes for **VidgeDB** — the embedded temporal graph database for digital twins
 of industrial machines. Wire a machine's telemetry into a twin, query it, and alert on
@@ -16,7 +16,7 @@ deviations, without writing a program.
 
 ```bash
 cd ~/.node-red
-npm install node-red-contrib-vidgedb
+npm install @vidge-ai/node-red-contrib-vidgedb
 ```
 
 Install it from npm, then restart Node-RED. The package declares `node-red.nodes` in its

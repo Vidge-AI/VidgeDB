@@ -12,14 +12,14 @@ export VIDGEDB_BIN=/opt/vidgeDB/target/release/vidgedb
 ```
 
 ```js
-import { VidgeDB } from "vidgedb";
+import { VidgeDB } from "@vidge-ai/vidgedb";
 const db = VidgeDB.open("twin.vdg", { bin: process.env.VIDGEDB_BIN, agentId: "bridge" });
 ```
 
 ## 1. Build a twin, then read it
 
 ```js
-import { VidgeDB } from "vidgedb";
+import { VidgeDB } from "@vidge-ai/vidgedb";
 
 await VidgeDB.with("twin.vdg", { agentId: "setup", role: "ingest" }, async (db) => {
   await db.upsertEntity("PLC01", "PLC", { vendor: "Siemens" }, [], "plc");
@@ -102,7 +102,7 @@ console.log(rows[0].max.value, rows[0].avg.value);
 
 ```js
 import express from "express";
-import { VidgeDB } from "vidgedb";
+import { VidgeDB } from "@vidge-ai/vidgedb";
 
 const app = express();
 const db = VidgeDB.open("/data/twin.vdg", { agentId: "web" });   // ONE engine instance

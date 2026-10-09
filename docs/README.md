@@ -4,7 +4,7 @@
 
 **VidgeDB is an embedded temporal graph database for AI-native digital twins of industrial machines.** One Rust binary, one `.vdg` file, no server, no dependencies. An AI agent (or any program) opens a VidgeDB *service*, speaks line-delimited **JSON-RPC 2.0** on the subprocess's stdin/stdout, and gets a machine-readable twin of a physical machine: typed topology, timestamped telemetry, expected-vs-observed deviation checks, and traceable diagnostic paths — with **tamper-evident provenance on every fact**.
 
-> **Résumé (français)** — VidgeDB est une base embarquée qui maintient le jumeau numérique d'une machine industrielle dans **un seul fichier `.vdg`** (Rust, pages 4 KiB, WAL + recovery crash-safe, binaire statique aarch64 de ~10 Mo strippé → déployable sur Raspberry Pi comme sur cloud). Un agent IA lance `vidgedb --service plant.vdg --role reader` et pilote la base via **JSON-RPC 2.0 ligne-par-ligne** (16 méthodes de lecture + 5 d'écriture) ou le langage **VidgeQL** (`MATCH … WHERE … RETURN`, `MEASURE … DURING last(24h) RETURN max(...)`, `CHECK … FOR … DURING … RETURN status, deviation`). Toutes les données portent une **provenance** parmi 8 classes (Fact, Observation, Specification, Inference, Hypothesis, Event, Command, Configuration) ; **le moteur refuse structurellement d'écrire ou de promouvoir une hypothèse** — les diagnostics produits par un agent restent des sorties de rapport, jamais des faits. Écriture (télémetrie, topologie, état, événements) réservée aux rôles `writer`/`ingest`, chaque appel audité. SDK Python (`pip install vidgedb`), SDK JS/TS (`npm install vidgedb`), nœuds Node-RED (`node-red-contrib-vidgedb`) — tous zéro dépendance.
+> **Résumé (français)** — VidgeDB est une base embarquée qui maintient le jumeau numérique d'une machine industrielle dans **un seul fichier `.vdg`** (Rust, pages 4 KiB, WAL + recovery crash-safe, binaire statique aarch64 de ~10 Mo strippé → déployable sur Raspberry Pi comme sur cloud). Un agent IA lance `vidgedb --service plant.vdg --role reader` et pilote la base via **JSON-RPC 2.0 ligne-par-ligne** (16 méthodes de lecture + 5 d'écriture) ou le langage **VidgeQL** (`MATCH … WHERE … RETURN`, `MEASURE … DURING last(24h) RETURN max(...)`, `CHECK … FOR … DURING … RETURN status, deviation`). Toutes les données portent une **provenance** parmi 8 classes (Fact, Observation, Specification, Inference, Hypothesis, Event, Command, Configuration) ; **le moteur refuse structurellement d'écrire ou de promouvoir une hypothèse** — les diagnostics produits par un agent restent des sorties de rapport, jamais des faits. Écriture (télémetrie, topologie, état, événements) réservée aux rôles `writer`/`ingest`, chaque appel audité. SDK Python (`pip install vidgedb`), SDK JS/TS (`npm install @vidge-ai/vidgedb`), nœuds Node-RED (`@vidge-ai/node-red-contrib-vidgedb`) — tous zéro dépendance.
 
 **Status**: v0.1.0, Apache-2.0 licence (see [LICENSE](../LICENSE)), maintained by VIDGE AI. Engine: 227 Rust tests green, zero warnings, SIGKILL crash harness 7/7 (zero torn commits). The docs you are reading were generated against the real binary — every JSON-RPC example below is copied from an actual session.
 
@@ -43,7 +43,7 @@ VidgeDB answers one question: *what is the state of this machine, what does the 
 | Query language | **VidgeQL** — graph patterns (`MATCH -["topology"]->`), temporal windows (`DURING last(24h)` / `t1..t2`), aggregates, and a `CHECK … FOR …` deviation statement |
 | The differentiator | **8-class provenance on every stored fact + the invariant that a `Hypothesis` can never be written or promoted by any agent role** (the engine refuses). Diagnostics are outputs, not data. |
 | Footprint | Static musl binary for aarch64: **12.3 MiB unstripped / 10.1 MiB stripped** (OPC-UA vendored OpenSSL since P16 — was 596 KiB before); x86_64 release binary: 14.7 MiB; Windows `.exe`: 18.0 MiB; 10-machine/200K-point twin: **11.75 MB process RSS measured**, data file 242 KiB |
-| SDKs | Python (`vidgedb` on PyPI, stdlib-only), JS/TS (`vidgedb` on npm, stdlib-only), Node-RED (`node-red-contrib-vidgedb`) |
+| SDKs | Python (`vidgedb` on PyPI, stdlib-only), JS/TS (`@vidge-ai/vidgedb` on npm, stdlib-only), Node-RED (`@vidge-ai/node-red-contrib-vidgedb`) |
 | Deployment hosts | Raspberry Pi 4/5/Zero 2 (static aarch64 build), any Linux x86_64 box, cloud |
 | NOT in v1 | network transport (no TCP listener — a child process per client), multi-writer concurrency, cryptographic auth, mmap, page checksums, compaction — see [Known limits](#11-known-limits) |
 
@@ -134,7 +134,7 @@ schema → {'entity_types': ['Motor', 'PLC'], ...}
 VIOLATION 10.0 11.7 1.6999999999999993
 ```
 
-### 2.1c Same via the JS/TS SDK (`npm install vidgedb`, ESM or CJS)
+### 2.1c Same via the JS/TS SDK (`npm install @vidge-ai/vidgedb`, ESM or CJS)
 
 ```js
 import { VidgeDB } from "vidgedb";           // const { VidgeDB } = require("vidgedb");
@@ -416,8 +416,8 @@ Three thin clients over the same subprocess protocol — **all zero-dependency**
 | SDK | Package | Style | Tests |
 |---|---|---|---|
 | Python ≥ 3.9 | `pip install vidgedb` (0.1.0) | `VidgeDB(path, agent_id=, role=, bin=)`; context manager; typed `CheckResult`, `MeasurementSeries` dataclasses; `db.call(method, **params)` = dynamic dispatch (new binary methods need no SDK update); `VidgeDBError(code, message)` | 35 pytest |
-| Node ≥ 18 (ESM+CJS) | `npm install vidgedb` (0.1.0) | `VidgeDB.open(path, {agentId, role, bin})`; Promise queue serializes interleaved calls; typed mirrors `query/check/trace/ingestPoints/…`; `VidgeDBError.code` | 32 node:test |
-| Node-RED | `node-red-contrib-vidgedb` (0.1.0) | config node `vidgedb-service` (owns the subprocess, auto-respawn 2.5 s, status dot green/ring red) + `vidgedb-query` / `vidgedb-ingest` / `vidgedb-check` / `vidgedb-log-event` | 27 node:test |
+| Node ≥ 18 (ESM+CJS) | `npm install @vidge-ai/vidgedb` (0.1.0) | `VidgeDB.open(path, {agentId, role, bin})`; Promise queue serializes interleaved calls; typed mirrors `query/check/trace/ingestPoints/…`; `VidgeDBError.code` | 32 node:test |
+| Node-RED | `@vidge-ai/node-red-contrib-vidgedb` (0.1.0) | config node `vidgedb-service` (owns the subprocess, auto-respawn 2.5 s, status dot green/ring red) + `vidgedb-query` / `vidgedb-ingest` / `vidgedb-check` / `vidgedb-log-event` | 27 node:test |
 
 Binary resolution in every SDK: explicit `bin` → `$VIDGEDB_BIN` → `vidgedb` on `PATH`.
 
@@ -576,7 +576,7 @@ They are better historians. VidgeDB couples four structures (typed graph, chunke
 Because the value of a hypothesis depends on being able to trust that nobody — including a future process — turned it into a fact. `set_hypothesis` is refused in every role, no engine path promotes classes, and diagnostics stay outputs of `diagnose`/agent reports. Your agent should keep its hypotheses in its own memory/notes, cite the `check`+`trace` evidence (with provenance), and a human decides what becomes Fact. See §8.
 
 **How do I connect my OPC-UA / MQTT / Modbus data?**
-Any tool that can spawn a process and write a line of JSON works. Industrial answer today: Node-RED (`node-red-contrib-vidgedb`, example flow MQTT→ingest included in `sdk-nodered/examples/`) or a small Python bridge with the SDK (`role="ingest"`); see [deployment.md](deployment.md) for both walk-throughs.
+Any tool that can spawn a process and write a line of JSON works. Industrial answer today: Node-RED (`@vidge-ai/node-red-contrib-vidgedb`, example flow MQTT→ingest included in `sdk-nodered/examples/`) or a small Python bridge with the SDK (`role="ingest"`); see [deployment.md](deployment.md) for both walk-throughs.
 
 **Can several agents read the same twin at once?**
 Yes — each spawns its own `vidgedb --service <db.vdg>` reader process; readers are concurrent and don't block each other. Only writers serialize (one writer process per file at a time).

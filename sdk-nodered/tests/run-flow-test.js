@@ -65,7 +65,7 @@ async function main() {
     // 1) Install THIS package into the headless user dir (the documented
     //    install path: `npm install <dir>` from the Node-RED user dir).
     const pkgPath = path.resolve(__dirname, "..");
-    log(`installing node-red-contrib-vidgedb from ${pkgPath}`);
+    log(`installing @vidge-ai/node-red-contrib-vidgedb from ${pkgPath}`);
     execSync(`npm install --no-audit --no-fund --loglevel=error "${pkgPath}"`,
         { cwd: USER_DIR, stdio: "pipe", timeout: 120000 });
 

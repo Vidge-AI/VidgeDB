@@ -15,7 +15,7 @@ class VidgeDBError extends Error {
 `try/catch` around the open call is worth having.
 
 ```js
-import { VidgeDB, VidgeDBError } from "vidgedb";
+import { VidgeDB, VidgeDBError } from "@vidge-ai/vidgedb";
 
 try {
   const db = VidgeDB.open("twin.vdg", { role: "reader" });

@@ -186,17 +186,27 @@ jobs:
           sudo install -m 755 distbin/vidgedb/vidgedb /usr/local/bin/vidgedb
           vidgedb --version
           echo "VIDGEDB_BIN=$(command -v vidgedb)" >> "$GITHUB_ENV"
-      - name: "Test + publish sdk-js (vidgedb)"
+      - name: "Test + publish sdk-js (@vidge-ai/vidgedb)"
         working-directory: sdk-js
         run: |
           npm ci
           npm test
-          npm publish
-      - name: "Test + publish sdk-nodered (node-red-contrib-vidgedb)"
+          if npm view "@vidge-ai/vidgedb@$(node -p "require('./package.json').version")" version 2>/dev/null; then
+            echo "version already on the registry — skipping publish"
+          else
+            npm publish --access public
+          fi
+      - name: "Test + publish sdk-nodered (@vidge-ai/node-red-contrib-vidgedb)"
         working-directory: sdk-nodered
         run: |
           npm test
-          npm publish
+          PKG=@vidge-ai/node-red-contrib-vidgedb
+          VER=$(node -p "require('./package.json').version")
+          if npm view "$PKG@$VER" version 2>/dev/null; then
+            echo "version already on the registry — skipping publish"
+          else
+            npm publish --access public
+          fi
 
   # ------------------------------------------------------------------
   # Publication de la release GitHub (les artefacts ci-dessus attachés)

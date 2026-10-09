@@ -119,7 +119,7 @@ Python ≥ 3.9, zero runtime dependencies (stdlib only: `subprocess`, `json`,
 ### JavaScript / TypeScript
 
 ```bash
-npm install vidgedb
+npm install @vidge-ai/vidgedb
 ```
 
 Build from source instead:
@@ -134,7 +134,7 @@ Node ≥ 18, ESM and CJS entry points, zero runtime dependencies.
 
 ```bash
 cd ~/.node-red
-npm install node-red-contrib-vidgedb
+npm install @vidge-ai/node-red-contrib-vidgedb
 ```
 
 **Not in the Node-RED library yet.** Until then, install from this repository path and

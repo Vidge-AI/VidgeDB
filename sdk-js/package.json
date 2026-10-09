@@ -1,6 +1,10 @@
 {
-  "name": "vidgedb",
-  "version": "0.1.2",
+  "name": "@vidge-ai/vidgedb",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "version": "0.1.0",
   "description": "JavaScript/TypeScript client for VidgeDB — drive the `vidgedb --service` JSON-RPC subprocess from Node. Zero runtime dependencies (ESM + CJS, typed).",
   "author": "JMK",
   "license": "Apache-2.0",
