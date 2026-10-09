@@ -30,6 +30,13 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
+      - name: "Install NASM (windows: vendored OpenSSL assembler)"
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          choco install nasm -y --no-progress
+          echo "C:\Program Files\NASM" >> $env:GITHUB_PATH
+
       - name: cargo build --release (all targets)
         run: cargo build --workspace --release --all-targets
 
@@ -37,7 +44,15 @@ jobs:
         shell: pwsh
         run: |
           $env:VIDGEDB_BIN = "$env:GITHUB_WORKSPACE/target/release/vidgedb"
-          cargo test --workspace --release
+          cargo test --workspace --release 2>&1 | Tee-Object -FilePath test-output.log
+          exit $LASTEXITCODE
+
+      - name: "Failure diagnosis (emits the cause as readable annotations)"
+        if: failure()
+        shell: bash
+        run: |
+          grep -E "^test .* FAILED|panicked at" test-output.log | head -20 | while IFS= read -r line; do echo "::error::$line"; done
+          grep -E "test result" test-output.log | tail -6 | while IFS= read -r line; do echo "::error::$line"; done
 
   nightly-slow:
     # CI nightly re-enables the #[ignore]-tagged slow tests (the ~497 s

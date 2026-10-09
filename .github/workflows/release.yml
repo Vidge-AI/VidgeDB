@@ -59,6 +59,7 @@ jobs:
           - artifact: linux-aarch64-musl
             target: aarch64-unknown-linux-musl
             apt: ""
+            features: core   # musl: vendored OpenSSL has no asm toolchain — core-only build (Pi artifact)
           - artifact: windows-x86_64
             target: x86_64-pc-windows-gnu
             apt: gcc-mingw-w64-x86-64
@@ -78,8 +79,25 @@ jobs:
         if: matrix.apt != ''
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt }}
 
+      - name: "Install NASM (windows: vendored OpenSSL assembler)"
+        if: contains(matrix.artifact, 'windows')
+        run: |
+          choco install nasm -y --no-progress
+          echo "C:\Program Files\NASM" >> $GITHUB_PATH
+
       - name: cargo build --release
-        run: cargo build --release --target ${{ matrix.target }} --bin vidgedb
+        run: |
+          set -o pipefail
+          if [ -n "${{ matrix.features }}" ]; then
+            cargo build --release --target ${{ matrix.target }} --no-default-features --bin vidgedb
+          else
+            cargo build --release --target ${{ matrix.target }} --bin vidgedb
+          fi 2>&1 | tee build-output.log
+
+      - name: "Failure diagnosis (emits the cause as readable annotations)"
+        if: failure()
+        run: |
+          grep -E "^error|error\[|error:|warning: unused" build-output.log | tail -20 | while IFS= read -r line; do echo "::error::$line"; done
 
       - name: Package
         run: |
@@ -148,8 +166,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/vidge-ai/vidgedb:latest
+            ghcr.io/vidge-ai/vidgedb:${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
