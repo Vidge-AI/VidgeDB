@@ -415,9 +415,9 @@ Three thin clients over the same subprocess protocol — **all zero-dependency**
 
 | SDK | Package | Style | Tests |
 |---|---|---|---|
-| Python ≥ 3.9 | `pip install vidgedb` (0.1.0) | `VidgeDB(path, agent_id=, role=, bin=)`; context manager; typed `CheckResult`, `MeasurementSeries` dataclasses; `db.call(method, **params)` = dynamic dispatch (new binary methods need no SDK update); `VidgeDBError(code, message)` | 35 pytest |
+| Python ≥ 3.9 | `pip install vidgedb` (0.1.1) | `VidgeDB(path, agent_id=, role=, bin=)`; context manager; typed `CheckResult`, `MeasurementSeries` dataclasses; `db.call(method, **params)` = dynamic dispatch (new binary methods need no SDK update); `VidgeDBError(code, message)` | 35 pytest |
 | Node ≥ 18 (ESM+CJS) | `npm install @vidge-ai/vidgedb` (0.1.0) | `VidgeDB.open(path, {agentId, role, bin})`; Promise queue serializes interleaved calls; typed mirrors `query/check/trace/ingestPoints/…`; `VidgeDBError.code` | 32 node:test |
-| Node-RED | `@vidge-ai/node-red-contrib-vidgedb` (0.1.0) | config node `vidgedb-service` (owns the subprocess, auto-respawn 2.5 s, status dot green/ring red) + `vidgedb-query` / `vidgedb-ingest` / `vidgedb-check` / `vidgedb-log-event` | 27 node:test |
+| Node-RED | `@vidge-ai/node-red-contrib-vidgedb` (0.1.0) | config node `vidgedb-service` (owns the subprocess, auto-respawn 2.5 s, status dot green/ring red) + `vidgedb-query` / `vidgedb-ingest` / `vidgedb-check` / `vidgedb-log-event` | 26 node:test |
 
 Binary resolution in every SDK: explicit `bin` → `$VIDGEDB_BIN` → `vidgedb` on `PATH`.
 

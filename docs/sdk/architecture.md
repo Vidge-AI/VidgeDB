@@ -87,17 +87,19 @@ Two consequences for client design, both deliberate:
 - **A client that only reads should never pass `role="ingest"`.** The default is
   reader for that reason. If a dashboard shows nothing when it should write, check the
   role before anything else.
-- **`set_hypothesis` does not exist as a callable method in the shipped engine.** The
-  refusal is implemented in the library layer but not wired into the service dispatch,
-  so it currently answers `-32601 unknown method`. Treat "the engine refuses" as the
-  *design* and do not build a feature that depends on the refusal message.
+- **`set_hypothesis` — historical gap (v0.1.0), FIXED (2026-10-07):** the method is now
+  wired into the service dispatch and answers a *semantic* refusal
+  (`refused: no agent role may write a hypothesis in any phase — use an explicit,
+  human-audited external write outside this API`), verified against the binary; it no
+  longer answers `-32601 unknown method`. The design rule stands: no role may write a
+  hypothesis through this API.
 
 ## 5. Versioning
 
 | | Version | Compatibility rule |
 |---|---|---|
-| Engine | `0.1.0` | the wire contract is the JSON-RPC method set |
-| Clients | `0.1.0` | a client of version X works with any engine that speaks the same methods |
+| Engine | `0.1.1` | the wire contract is the JSON-RPC method set |
+| Clients | `0.1.0`, `0.1.1` | a client of version X works with any engine that speaks the same methods |
 
 Because dispatch is generic, **clients are forward-compatible by construction**: an
 engine that adds methods keeps working with an old client (the new methods are reachable

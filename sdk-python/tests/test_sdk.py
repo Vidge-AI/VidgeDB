@@ -152,7 +152,7 @@ class TestLifecycle:
             d.schema()
 
     def test_version_dunder(self):
-        assert __version__ == "0.1.0"
+        assert __version__ == "0.1.1"
 
     def test_repr_and_pid(self, fresh_db):
         d = VidgeDB(str(fresh_db), bin=str(VIDGEDB_BIN))

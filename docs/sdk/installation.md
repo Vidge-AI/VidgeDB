@@ -106,13 +106,6 @@ process own the child — which is what every client here does.
 pip install vidgedb
 ```
 
-**Not on PyPI yet** — see [publishing.md](publishing.md). Until then, from
-this repository:
-
-```bash
-cd python && pip install -e .
-```
-
 Python ≥ 3.9, zero runtime dependencies (stdlib only: `subprocess`, `json`,
 `dataclasses`).
 
@@ -125,7 +118,7 @@ npm install @vidge-ai/vidgedb
 Build from source instead:
 
 ```bash
-cd js && npm install && npm run build
+cd sdk-js && npm ci && npm run build
 ```
 
 Node ≥ 18, ESM and CJS entry points, zero runtime dependencies.
@@ -137,9 +130,11 @@ cd ~/.node-red
 npm install @vidge-ai/node-red-contrib-vidgedb
 ```
 
-**Not in the Node-RED library yet.** Until then, install from this repository path and
-restart Node-RED. The package declares `node-red.nodes` in its `package.json`, which is
-what makes the palette entry appear.
+The package is published on npm under the `@vidge-ai` scope, so this install works
+from the registry. (Listing in the curated Node-RED Library directory at
+flows.nodered.org is a separate manual submission — not done yet; the package
+declares `node-red.nodes` in its `package.json`, which is what makes the palette
+entry appear once installed.)
 
 ## 3. Making the client find the engine
 
@@ -162,16 +157,16 @@ absolute path, because a daemon has no useful `PATH`.
 ## 4. Verifying the installation
 
 ```bash
-"$VIDGEDB_BIN" --version          # vidgedb 0.1.0
+"$VIDGEDB_BIN" --version          # vidgedb 0.1.1
 "$VIDGEDB_BIN" smoke              # the spec §58 example machine, 2 violations detected
 ```
 
 Then, per client:
 
 ```bash
-cd python && python -m pytest -q          # 35 passed
-cd js && npm test                         # 32 passed  (builds first)
-cd node-red && npm test                   # 27 passed
+cd sdk-python && VIDGEDB_BIN=... python -m pytest -q   # 35 passed
+cd sdk-js && VIDGEDB_BIN=... npm test                  # 32 passed (builds first)
+cd sdk-nodered && VIDGEDB_BIN=... npm test             # 26 passed
 ```
 
 If `--version` works but a client cannot start, the problem is resolution (step 3),

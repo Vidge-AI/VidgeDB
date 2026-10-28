@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vidgedb"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python client for VidgeDB — drive the vidgedb JSON-RPC service (line-delimited stdin/stdout) from any Python process. Zero runtime dependencies (stdlib only)."
 readme = "README.md"
 requires-python = ">=3.9"

@@ -1,6 +1,6 @@
 [package]
 name = "vidgedb"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "VidgeDB — embedded temporal graph database for digital twins (vigilance on the edge). Single-file .vdg engine."
 license = "Apache-2.0"

@@ -55,14 +55,10 @@ agent stayed read-only is a feature, not an inconvenience.
 You sent a relation before creating its target. **Create entities first, then
 relations** (Recipe 1 shows the correct order).
 
-⚠️ **Known defect in the shipped engine (v0.1.0), verified:** after that refusal, in the
-*same* process, the half-created entity remains as key 0 with a NUL name — invisible to
-VQL, `check` answers `NO_DATA` instead of `unknown entity`, and **the next valid
-`upsert_entity` fails with `PageOutOfBounds`**. The file on disk is fine (reopening
-recovers); the corruption is per-session, in memory. Workarounds: create the entities
-in a first pass and relations in a second (which is what the reference loader does), and
-restart the client process if you ever hit it. The fix belongs in the engine
-(validate relation targets before opening the transaction).
+✅ **Historical defect (v0.1.0), FIXED in the engine since then (2026-10-07, verified):
+validate relation targets before opening the transaction.** The symptom below no longer
+reproduces on a current build; the workaround (create entities first, then relations)
+remains good practice.
 
 ## 5. "database is write-locked by process N"
 
@@ -74,12 +70,12 @@ cannot open /data/twin.vdg: database '/data/twin.vdg' is write-locked by process
 **One writer per `.vdg` file.** Readers are always allowed. Two situations:
 
 - **a real second writer** — stop one of them; this is the guard doing its job;
-- **a stale lock after `docker stop`** — the engine releases the lock on clean exit,
-  but it installs no `SIGTERM` handler (verified), so `docker stop` leaves the lock
-  behind. A new container is then refused for **75 s** (the age at which the lock is
-  declared abandoned and stolen, with an explicit message), after which it recovers.
-  Workaround today: `docker restart` instead of `stop` + `run`, or wait. The fix is an
-  orderly-signal handler in the engine.
+- **a stale lock after `docker stop`** — **no longer an issue on current engines**: the
+  lock is released on clean exit AND on SIGTERM (ordered-shutdown hook, `src/signals.rs`,
+  `sigwait` thread — verified in Docker, restart waits 0 s). Still relevant on engines
+  ≤ 0.1.0 or after `kill -9`: the lock is declared abandoned and stolen after **75 s**
+  (with an explicit message), after which the open recovers; `docker restart` instead
+  of `stop` + `run` also avoids the wait.
 
 ## 6. "MATCH (x) RETURN x" returns nothing
 

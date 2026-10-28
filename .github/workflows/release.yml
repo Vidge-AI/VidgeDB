@@ -234,6 +234,67 @@ jobs:
           fi
 
   # ------------------------------------------------------------------
+  # Publication PyPI du SDK Python — OIDC "trusted publishing" (AUCUN token).
+  # Trust configuré côté pypi.org : pending publisher créé par JMK sur
+  # l'organisation vidge-ai (projet VidgeDB, repo Vidge-AI/VidgeDB,
+  # workflow release.yml, environment: (Tous) = aucune contrainte).
+  # Le PREMIER upload crée le projet PyPI et verrouille le nom — ne pas
+  # déclencher ce job par pipeline "à blanc".
+  # ------------------------------------------------------------------
+  pypi-sdk:
+    needs: [binaries]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write      # le seul droit dont le publish OIDC a besoin
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch linux-x86_64 binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vidgedb-linux-x86_64
+          path: distbin
+      - name: Install binary on PATH for SDK tests
+        run: |
+          set -eu
+          tar xzf distbin/vidgedb-linux-x86_64.tar.gz -C distbin
+          sudo install -m 755 distbin/vidgedb/vidgedb /usr/local/bin/vidgedb
+          vidgedb --version
+          echo "VIDGEDB_BIN=$(command -v vidgedb)" >> "$GITHUB_ENV"
+      - name: Test sdk-python against the fresh binary
+        working-directory: sdk-python
+        run: |
+          set -o pipefail
+          pip install pytest
+          python -m pytest tests -q 2>&1 | tee pytest-output.log
+      - name: "Failure diagnosis (emits the cause as readable annotations)"
+        if: failure()
+        run: |
+          grep -E "FAILED|ERROR|panicked at|error" sdk-python/pytest-output.log | head -20 | while IFS= read -r line; do echo "::error::$line"; done || true
+      - name: Upload pytest log artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-log-pypi-sdk
+          path: sdk-python/pytest-output.log
+      - name: Build sdist + wheel
+        working-directory: sdk-python
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdk-python/dist/
+          verbose: true
+
+  # ------------------------------------------------------------------
   # Publication de la release GitHub (les artefacts ci-dessus attachés)
   # ------------------------------------------------------------------
   release:

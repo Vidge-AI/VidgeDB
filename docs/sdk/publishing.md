@@ -1,7 +1,8 @@
 # Publishing — how these packages get built and released
 
 *State (2026-10-09): the JS SDK and the Node-RED nodes are published on npm under the
-`@vidge-ai` scope. Python SDK: not on PyPI yet — install from this repository.*
+`@vidge-ai` scope. Python SDK: published to PyPI as **`vidgedb`** (`pip install
+vidgedb`), published from this repository via the `pypi-sdk` job.*
 
 ---
 
@@ -49,6 +50,8 @@ git tag v0.1.0  →  push tag
         ├─ job: container → ghcr.io image
         ├─ job: npm-sdks  → OIDC publish @vidge-ai/vidgedb + @vidge-ai/node-red-contrib-vidgedb
         │                  (skips a version that already exists on the registry)
+        ├─ job: pypi-sdk  → OIDC publish vidgedb (test-first: pytest 35 against the
+        │                  freshly built engine binary, then build sdist+wheel, then upload)
         └─ job: release   → attach the engine tarballs to the GitHub release
 ```
 
@@ -74,7 +77,7 @@ Rules that make this safe:
 
 ```bash
 cd sdk-python
-python -m build                    # → dist/vidgedb-0.1.0-py3-none-any.whl + .tar.gz
+python -m build                    # → dist/vidgedb-0.1.1-py3-none-any.whl + .tar.gz
 python -m twine check dist/*
 pip install dist/*.whl && python -c "import vidgedb; print(vidgedb.__version__)"
 ```
@@ -106,9 +109,10 @@ npm pack --dry-run
 1. **npm packages with every engine tag that changes them.** The `npm-sdks` job already
    runs on every `v*` tag; the version-skip guard makes re-tags and release-only runs
    painless.
-2. **PyPI first release** when the Python packaging job is wired into `release.yml` —
-   until then `pip install vidgedb` is NOT possible, install from source or via the
-   `sdk-python/` directory.
+2. **PyPI publishes with the same tag** (the `pypi-sdk` job, trusted publisher
+   `vidge-ai`/VidgeDB/release.yml; the first `v*` tag carrying it created the project
+   and locked the name). If a PyPI upload fails, fix and bump the patch version — a
+   version is burned forever.
 3. **The engine tarballs attach themselves** (the `release` job), so `VIDGEDB_BIN` can
    point at a download instead of a build.
 
