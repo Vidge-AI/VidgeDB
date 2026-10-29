@@ -76,6 +76,20 @@ jobs:
         if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
+      - name: "Install the aarch64 musl CROSS toolchain (musl.cc)"
+        if: contains(matrix.target, 'musl')
+        run: |
+          set -eu
+          # musl-tools on x86_64 only ships the HOST musl-gcc; there is no
+          # Ubuntu package for aarch64-linux-musl-gcc. The standard toolchain
+          # is musl.cc's aarch64-linux-musl-cross (gcc 11.2.1) — the same one
+          # used for every local verification so far.
+          curl -fL --retry 3 -o /tmp/aarch64-musl-cross.tgz https://musl.cc/aarch64-linux-musl-cross.tgz \
+            || curl -fL --retry 3 -o /tmp/aarch64-musl-cross.tgz https://more.musl.cc/11.2.1/x86_64-linux-gnu/aarch64-linux-musl-cross.tgz
+          sudo tar xzf /tmp/aarch64-musl-cross.tgz -C /opt
+          test -x /opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
+          echo "/opt/aarch64-linux-musl-cross/bin" >> "$GITHUB_PATH"
+
       - name: Install cross toolchain (mingw)
         if: matrix.apt != ''
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt }}
