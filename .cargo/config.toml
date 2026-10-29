@@ -1,0 +1,10 @@
+# Cross-compile + link configuration (shared by local builds and CI).
+#
+# aarch64-musl (the Raspberry Pi static artifact): musl-tools installs the
+# cross-linker as `aarch64-linux-musl-gcc`, but WITHOUT this override cargo
+# falls back to `cc` — the HOST gcc — for target links. On a musl-targeted
+# link that ends in `collect2: error: ld returned 1 exit status` (undefined
+# references against the host glibc toolchain). This file MUST be versioned:
+# it is the difference between the artifact building and not building.
+[target.aarch64-unknown-linux-musl]
+linker = "aarch64-linux-musl-gcc"
