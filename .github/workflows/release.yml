@@ -48,7 +48,8 @@ jobs:
   # ------------------------------------------------------------------
   binaries:
     name: ${{ matrix.artifact }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -78,12 +79,6 @@ jobs:
       - name: Install cross toolchain (mingw)
         if: matrix.apt != ''
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt }}
-
-      - name: "Install NASM (windows: vendored OpenSSL assembler)"
-        if: contains(matrix.artifact, 'windows')
-        run: |
-          choco install nasm -y --no-progress
-          echo "C:\Program Files\NASM" >> $GITHUB_PATH
 
       - name: cargo build --release
         run: |

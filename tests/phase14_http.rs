@@ -651,16 +651,44 @@ fn phase14_default_bind_is_loopback_only() {
     wait_healthy(port, "agent-http");
 
     // The bound socket must be 127.0.0.1 — NEVER 0.0.0.0.
+    // Linux oracle: the full LISTEN table from /proc/net/tcp.
+    // macOS/Windows portable oracle: the machine's primary NON-loopback
+    // address must REFUSE the connection (a 0.0.0.0 bind would accept it).
     let bound: Vec<String> = loopback_listeners_on(port);
-    assert!(
-        bound.iter().all(|a| a.starts_with("127.0.0.1")),
-        "default bind must be loopback-only, bound: {:?}",
-        bound
-    );
-    assert!(
-        !bound.is_empty(),
-        "the server's listener port must show in /proc/net/tcp"
-    );
+    if cfg!(target_os = "linux") || !bound.is_empty() {
+        assert!(
+            bound.iter().all(|a| a.starts_with("127.0.0.1")),
+            "default bind must be loopback-only, bound: {:?}",
+            bound
+        );
+    }
+    if cfg!(target_os = "linux") {
+        assert!(
+            !bound.is_empty(),
+            "the server's listener port must show in /proc/net/tcp"
+        );
+    } else {
+        // Portable 0.0.0.0 proof. `local_addr` of a UDP socket "connected"
+        // to a public address yields the primary interface IP (no packet
+        // is sent by a UDP connect). Best-effort: if the sandbox has no
+        // route, the probe is skipped — the Linux runners carry the exact
+        // /proc oracle above.
+        if let Ok(sock) = std::net::UdpSocket::bind("0.0.0.0:0") {
+            if sock.connect("8.8.8.8:80").is_ok() {
+                if let Ok(ip) = sock.local_addr() {
+                    let host = ip.ip().to_string();
+                    if !host.starts_with("127.") {
+                        let admitted = std::net::TcpStream::connect((host.as_str(), port)).is_ok();
+                        assert!(
+                            !admitted,
+                            "default bind must NOT be reachable on the non-loopback \
+                             address {host} (0.0.0.0 exposure)"
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     child.kill().unwrap();
     child.wait().unwrap();
