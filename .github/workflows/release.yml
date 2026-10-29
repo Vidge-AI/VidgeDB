@@ -76,17 +76,35 @@ jobs:
         if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      - name: "Install the aarch64 musl CROSS toolchain (musl.cc)"
+      - name: "Install the aarch64 musl CROSS toolchain (musl.cc, GitHub mirror + sha256)"
         if: contains(matrix.target, 'musl')
         run: |
           set -eu
-          # musl-tools on x86_64 only ships the HOST musl-gcc; there is no
-          # Ubuntu package for aarch64-linux-musl-gcc. The standard toolchain
-          # is musl.cc's aarch64-linux-musl-cross (gcc 11.2.1) — the same one
-          # used for every local verification so far.
-          curl -fL --retry 3 -o /tmp/aarch64-musl-cross.tgz https://musl.cc/aarch64-linux-musl-cross.tgz \
-            || curl -fL --retry 3 -o /tmp/aarch64-musl-cross.tgz https://more.musl.cc/11.2.1/x86_64-linux-gnu/aarch64-linux-musl-cross.tgz
-          sudo tar xzf /tmp/aarch64-musl-cross.tgz -C /opt
+          # musl-tools on x86_64 only ships the HOST musl-gcc (no Ubuntu
+          # package for aarch64-linux-musl-gcc). We use the musl.cc cross
+          # toolchain (gcc 11.2.1) — the one every local verification used.
+          # musl.cc itself truncates downloads mid-stream; the musl-cc/musl.cc
+          # GitHub release mirrors the SAME archive (sha256 published) and is
+          # served by GitHub's CDN. Primary = GitHub mirror, checksum-pinned;
+          # fallback = musl.cc with an integrity check + retries.
+          TGT=/tmp/aarch64-musl-cross.tgz
+          SHA=c909817856d6ceda86aa510894fa3527eac7989f0ef6e87b5721c58737a06c38
+          ok=0
+          for i in 1 2 3; do
+            if curl -fL --retry 3 --retry-all-errors -o "$TGT" \
+                 https://github.com/musl-cc/musl.cc/releases/download/v0.0.1/aarch64-linux-musl-cross.tgz \
+               && echo "$SHA  $TGT" | sha256sum --quiet -c -; then
+              ok=1; break
+            fi
+            if curl -fL --retry 3 --retry-all-errors -o "$TGT" \
+                 https://musl.cc/aarch64-linux-musl-cross.tgz \
+               && tar -tzf "$TGT" > /dev/null 2>&1; then
+              ok=1; break
+            fi
+            sleep 10
+          done
+          test "$ok" = 1 || { echo "::error::musl toolchain download failed"; exit 1; }
+          sudo tar xzf "$TGT" -C /opt
           test -x /opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
           echo "/opt/aarch64-linux-musl-cross/bin" >> "$GITHUB_PATH"
 
