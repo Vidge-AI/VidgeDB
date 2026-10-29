@@ -14,154 +14,162 @@
 //! `SIGKILL` reste exclu du contrat, volontairement : on ne peut pas
 //! intercepter un kill -9. Une exécution qui se termine ainsi est traitée par
 //! le vol de verrou après 75 s (documenté dans docs/deployment.md).
+//!
+//! POSIX-only: the whole contract is about real SIGTERM/SIGINT delivery.
+//! Windows has no POSIX signal delivery (the engine's signals.rs installs an
+//! inert stub there); the tests are cfg(all(test, unix)) so the windows-gnu
+//! CI leg compiles this file out entirely.
 
-use std::path::Path;
-use std::process::{Child, Command, Stdio};
-use std::thread::sleep;
-use std::time::{Duration, Instant};
+#[cfg(all(test, unix))]
+mod tests {
+    use std::path::Path;
+    use std::process::{Child, Command, Stdio};
+    use std::thread::sleep;
+    use std::time::{Duration, Instant};
 
-fn bin() -> String {
-    match std::env::var("VIDGEDB_BIN") {
-        Ok(v) if !v.is_empty() => v,
-        _ => panic!(
-            "VIDGEDB_BIN is not set — these tests drive the real `vidgedb --service` binary; \
-             run with VIDGEDB_BIN=$PWD/target/release/vidgedb (see DEVELOPING.md)"
-        ),
-    }
-}
-
-fn tmp(name: &str) -> String {
-    let mut p = std::env::temp_dir();
-    p.push(format!("vidgedb_p92_{}_{}.vdg", name, std::process::id()));
-    p.to_string_lossy().to_string()
-}
-
-fn cleanup(path: &str) {
-    for suf in ["", "-wal", "-wlock"] {
-        let _ = std::fs::remove_file(format!("{}{}", path, suf));
-    }
-}
-
-fn lock_path(db: &str) -> String {
-    format!("{}-wlock", db)
-}
-
-/// Lance un service en mode `--http` (processus longue durée, comme en
-/// production) et attend que le verrou soit posé.
-fn spawn_http(db: &str, port: u16) -> Child {
-    let child = Command::new(bin())
-        .args([
-            "--http",
-            db,
-            "--port",
-            &port.to_string(),
-            "--role",
-            "ingest",
-            "--agent-id",
-            "p92",
-        ])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn vidgedb --http");
-    // Le verrou est posé pendant l'ouverture : on attend qu'il apparaisse.
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !Path::new(&lock_path(db)).exists() && Instant::now() < deadline {
-        sleep(Duration::from_millis(50));
-    }
-    assert!(
-        Path::new(&lock_path(db)).exists(),
-        "le verrou doit exister pendant que le writer tourne ({})",
-        lock_path(db)
-    );
-    child
-}
-
-/// Envoie un signal et attend la sortie du processus, en bornant l'attente.
-fn signal_and_wait(child: &mut Child, sig: i32) -> Option<i32> {
-    let pid = child.id() as i32;
-    // SAFETY: kill(2) sur un pid qu'on a soi-même lancé.
-    unsafe {
-        libc_kill(pid, sig);
-    }
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while Instant::now() < deadline {
-        if let Ok(Some(st)) = child.try_wait() {
-            return Some(st.code().unwrap_or(-1));
+    fn bin() -> String {
+        match std::env::var("VIDGEDB_BIN") {
+            Ok(v) if !v.is_empty() => v,
+            _ => panic!(
+                "VIDGEDB_BIN is not set — these tests drive the real `vidgedb --service` binary; \
+                 run with VIDGEDB_BIN=$PWD/target/release/vidgedb (see DEVELOPING.md)"
+            ),
         }
-        sleep(Duration::from_millis(50));
     }
-    None
-}
 
-extern "C" {
-    #[link_name = "kill"]
-    fn libc_kill(pid: i32, sig: i32) -> i32;
-}
+    fn tmp(name: &str) -> String {
+        let mut p = std::env::temp_dir();
+        p.push(format!("vidgedb_p92_{}_{}.vdg", name, std::process::id()));
+        p.to_string_lossy().to_string()
+    }
 
-const SIGTERM: i32 = 15;
-const SIGINT: i32 = 2;
+    fn cleanup(path: &str) {
+        for suf in ["", "-wal", "-wlock"] {
+            let _ = std::fs::remove_file(format!("{}{}", path, suf));
+        }
+    }
 
-/// Le cas de production : `docker stop` envoie SIGTERM. Le verrou doit
-/// disparaître, sinon le conteneur suivant est refusé 75 s.
-#[test]
-fn sigterm_releases_the_writer_lock() {
-    let db = tmp("sigterm");
-    cleanup(&db);
-    let mut child = spawn_http(&db, 19961);
+    fn lock_path(db: &str) -> String {
+        format!("{}-wlock", db)
+    }
 
-    let code = signal_and_wait(&mut child, SIGTERM);
-    assert!(code.is_some(), "le processus doit sortir sur SIGTERM");
+    /// Lance un service en mode `--http` (processus longue durée, comme en
+    /// production) et attend que le verrou soit posé.
+    fn spawn_http(db: &str, port: u16) -> Child {
+        let child = Command::new(bin())
+            .args([
+                "--http",
+                db,
+                "--port",
+                &port.to_string(),
+                "--role",
+                "ingest",
+                "--agent-id",
+                "p92",
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn vidgedb --http");
+        // Le verrou est posé pendant l'ouverture : on attend qu'il apparaisse.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !Path::new(&lock_path(db)).exists() && Instant::now() < deadline {
+            sleep(Duration::from_millis(50));
+        }
+        assert!(
+            Path::new(&lock_path(db)).exists(),
+            "le verrou doit exister pendant que le writer tourne ({})",
+            lock_path(db)
+        );
+        child
+    }
 
-    assert!(
-        !Path::new(&lock_path(&db)).exists(),
-        "SIGTERM doit libérer le verrou (sinon 75 s de refus au redémarrage)"
-    );
-    cleanup(&db);
-}
+    /// Envoie un signal et attend la sortie du processus, en bornant l'attente.
+    fn signal_and_wait(child: &mut Child, sig: i32) -> Option<i32> {
+        let pid = child.id() as i32;
+        // SAFETY: kill(2) sur un pid qu'on a soi-même lancé.
+        unsafe {
+            libc_kill(pid, sig);
+        }
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            if let Ok(Some(st)) = child.try_wait() {
+                return Some(st.code().unwrap_or(-1));
+            }
+            sleep(Duration::from_millis(50));
+        }
+        None
+    }
 
-/// Ctrl-C dans un terminal : même contrat.
-#[test]
-fn sigint_releases_the_writer_lock() {
-    let db = tmp("sigint");
-    cleanup(&db);
-    let mut child = spawn_http(&db, 19962);
+    extern "C" {
+        #[link_name = "kill"]
+        fn libc_kill(pid: i32, sig: i32) -> i32;
+    }
 
-    let code = signal_and_wait(&mut child, SIGINT);
-    assert!(code.is_some(), "le processus doit sortir sur SIGINT");
+    const SIGTERM: i32 = 15;
+    const SIGINT: i32 = 2;
 
-    assert!(
-        !Path::new(&lock_path(&db)).exists(),
-        "SIGINT doit libérer le verrou"
-    );
-    cleanup(&db);
-}
+    /// Le cas de production : `docker stop` envoie SIGTERM. Le verrou doit
+    /// disparaître, sinon le conteneur suivant est refusé 75 s.
+    #[test]
+    fn sigterm_releases_the_writer_lock() {
+        let db = tmp("sigterm");
+        cleanup(&db);
+        let mut child = spawn_http(&db, 19961);
 
-/// Après un arrêt propre, un NOUVEAU writer sur le même fichier doit
-/// démarrer IMMÉDIATEMENT (c'est le bénéfice concret du correctif).
-#[test]
-fn a_new_writer_starts_immediately_after_a_clean_stop() {
-    let db = tmp("restart");
-    cleanup(&db);
+        let code = signal_and_wait(&mut child, SIGTERM);
+        assert!(code.is_some(), "le processus doit sortir sur SIGTERM");
 
-    // premier writer : on écrit une donnée, puis SIGTERM
-    let mut first = spawn_http(&db, 19963);
-    let st = signal_and_wait(&mut first, SIGTERM);
-    assert!(st.is_some(), "premier writer doit sortir");
+        assert!(
+            !Path::new(&lock_path(&db)).exists(),
+            "SIGTERM doit libérer le verrou (sinon 75 s de refus au redémarrage)"
+        );
+        cleanup(&db);
+    }
 
-    // second writer : doit s'ouvrir tout de suite, sans attendre 75 s
-    let t0 = Instant::now();
-    let mut second = spawn_http(&db, 19964);
-    let elapsed = t0.elapsed();
+    /// Ctrl-C dans un terminal : même contrat.
+    #[test]
+    fn sigint_releases_the_writer_lock() {
+        let db = tmp("sigint");
+        cleanup(&db);
+        let mut child = spawn_http(&db, 19962);
 
-    assert!(
-        elapsed < Duration::from_secs(5),
-        "un nouveau writer doit démarrer sans délai après un arrêt propre \
-(attendu < 5 s, mesuré {:?}) — c'est le bug des 75 s",
-        elapsed
-    );
+        let code = signal_and_wait(&mut child, SIGINT);
+        assert!(code.is_some(), "le processus doit sortir sur SIGINT");
 
-    let _ = signal_and_wait(&mut second, SIGTERM);
-    cleanup(&db);
+        assert!(
+            !Path::new(&lock_path(&db)).exists(),
+            "SIGINT doit libérer le verrou"
+        );
+        cleanup(&db);
+    }
+
+    /// Après un arrêt propre, un NOUVEAU writer sur le même fichier doit
+    /// démarrer IMMÉDIATEMENT (c'est le bénéfice concret du correctif).
+    #[test]
+    fn a_new_writer_starts_immediately_after_a_clean_stop() {
+        let db = tmp("restart");
+        cleanup(&db);
+
+        // premier writer : on écrit une donnée, puis SIGTERM
+        let mut first = spawn_http(&db, 19963);
+        let st = signal_and_wait(&mut first, SIGTERM);
+        assert!(st.is_some(), "premier writer doit sortir");
+
+        // second writer : doit s'ouvrir tout de suite, sans attendre 75 s
+        let t0 = Instant::now();
+        let mut second = spawn_http(&db, 19964);
+        let elapsed = t0.elapsed();
+
+        assert!(
+            elapsed < Duration::from_secs(5),
+            "un nouveau writer doit démarrer sans délai après un arrêt propre \
+    (attendu < 5 s, mesuré {:?}) — c'est le bug des 75 s",
+            elapsed
+        );
+
+        let _ = signal_and_wait(&mut second, SIGTERM);
+        cleanup(&db);
+    }
 }

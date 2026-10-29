@@ -58,11 +58,25 @@ jobs:
 
       - name: cargo build --release (all targets)
         run: |
+          set -o pipefail
           if [ -n "${{ matrix.target }}" ]; then
-            cargo build --workspace --release --all-targets --target ${{ matrix.target }}
+            cargo build --workspace --release --all-targets --target ${{ matrix.target }} 2>&1 | tee build-output.log
           else
-            cargo build --workspace --release --all-targets
+            cargo build --workspace --release --all-targets 2>&1 | tee build-output.log
           fi
+
+      - name: "Build failure diagnosis"
+        if: failure()
+        shell: bash
+        run: |
+          grep -E "error\[|^error|undefined reference" build-output.log | head -25 | while IFS= read -r line; do echo "::error::$line"; done || true
+
+      - name: Upload build log artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.os }}
+          path: build-output.log
 
       - name: cargo test --release (VIDGEDB_BIN required by the subprocess tests)
         shell: pwsh
@@ -75,7 +89,7 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          grep -E "FAILED|panicked at|test result|error\[|error:" test-output.log | head -30 | while IFS= read -r line; do echo "::error::$line"; done || true
+          grep -E "FAILED|panicked at|error\[|error:" test-output.log | head -40 | while IFS= read -r line; do echo "::error::$line"; done; grep -A6 "panicked at" test-output.log | head -20 | while IFS= read -r line; do echo "::error::$line"; done || true
 
       - name: Upload test log artifact
         if: failure()

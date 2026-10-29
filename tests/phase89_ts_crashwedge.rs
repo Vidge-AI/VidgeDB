@@ -405,6 +405,23 @@ mod p1_kill_grid {
 mod tests {
     // P2 lives outside the cfg(unix) P1 module but reuses its helpers
     // (tmp_dir/clean_db) — cross-module use inside this same test file.
+    // On non-POSIX targets P1 is compiled out: the helpers are re-declared
+    // here so P2 stays standalone.
+    #[cfg(not(unix))]
+    pub(super) fn tmp_dir(name: &str) -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(format!("vidgedb_p89tw_{}_{}", name, std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+    #[cfg(not(unix))]
+    pub(super) fn clean_db(path: &std::path::Path) {
+        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_file(format!("{}-wal", path.display()));
+        let _ = std::fs::remove_file(format!("{}-wlock", path.display()));
+    }
+
+    #[cfg(unix)]
     use crate::p1_kill_grid::{clean_db, tmp_dir};
 
     /// T0 for the P2 fixtures (same epoch family as the P1 grid).

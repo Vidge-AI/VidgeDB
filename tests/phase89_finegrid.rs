@@ -4,7 +4,12 @@
 //! Grid: delays 2..100 ms around the flush point, fresh twin per kill, and
 //! the reopen audit (R1..R5). Prints one JSON-ish line per kill; the wedge
 //! window is the set of delays that come back wedged.
-#[cfg(test)]
+//!
+//! POSIX-only: the kill grid sends SIGKILL via the `kill` syscall — there is
+//! no Windows equivalent to kill-on-write-mid-flight in the semantics this
+//! probe measures (the crash matrix for Windows = phase89 P2, which is
+//! cfg-gated the same way).
+#[cfg(all(test, unix))]
 mod tests {
     use std::io::{BufRead, BufReader};
     use std::process::{Child, Command, Stdio};
